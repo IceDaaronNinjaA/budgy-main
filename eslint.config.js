@@ -1,0 +1,24 @@
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require("eslint-config-expo/flat");
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ["dist/*"],
+    settings: {
+      "import/resolver": {
+        alias: {
+          map: [["@", "./src"]],
+          extensions: [".js", ".jsx", ".json", ".css"],
+        },
+      },
+    },
+  },
+  {
+    files: ["src/hooks/use-color-scheme.web.js"],
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+    },
+  }
+]);
