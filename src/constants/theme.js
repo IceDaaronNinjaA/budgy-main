@@ -6,24 +6,24 @@ import '@/global.css';
 import { Platform } from 'react-native';
 export const Colors = {
     light: {
-        text: '#000000',
-        background: '#ffffff',
-        backgroundElement: '#F0F0F3',
-        backgroundSelected: '#E0E1E6',
-        textSecondary: '#60646C',
+        text: '#1F2933',
+        background: '#F7F7F8',
+        backgroundElement: '#E5E7EB',
+        backgroundSelected: '#D1D5DB',
+        textSecondary: '#4B5563',
     },
     dark: {
-        text: '#ffffff',
-        background: '#000000',
-        backgroundElement: '#212225',
-        backgroundSelected: '#2E3135',
-        textSecondary: '#B0B4BA',
+        text: '#F9FAFB',
+        background: '#111827',
+        backgroundElement: '#374151',
+        backgroundSelected: '#4B5563',
+        textSecondary: '#D1D5DB',
     },
 };
 export const Fonts = Platform.select({
     ios: {
         /** iOS `UIFontDescriptorSystemDesignDefault` */
-        sans: 'system-ui',
+        sans: 'Roboto',
         /** iOS `UIFontDescriptorSystemDesignSerif` */
         serif: 'ui-serif',
         /** iOS `UIFontDescriptorSystemDesignRounded` */
@@ -32,13 +32,13 @@ export const Fonts = Platform.select({
         mono: 'ui-monospace',
     },
     default: {
-        sans: 'normal',
+    sans: 'Roboto',
         serif: 'serif',
         rounded: 'normal',
         mono: 'monospace',
     },
     web: {
-        sans: 'var(--font-display)',
+    sans: 'Roboto, Arial, sans-serif',
         serif: 'var(--font-serif)',
         rounded: 'var(--font-rounded)',
         mono: 'var(--font-mono)',
