@@ -6,6 +6,7 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }) {
     const theme = useTheme();
     return (_jsx(Text, { style: [
             { color: theme[themeColor ?? 'text'] },
+            styles.font,
             type === 'default' && styles.default,
             type === 'title' && styles.title,
             type === 'small' && styles.small,
@@ -18,6 +19,9 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }) {
         ], ...rest }));
 }
 const styles = StyleSheet.create({
+    font: {
+        fontFamily: Fonts.sans,
+    },
     small: {
         fontSize: 14,
         lineHeight: 20,
