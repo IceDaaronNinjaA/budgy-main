@@ -1,15 +1,6 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { jsx as _jsx } from "react/jsx-runtime";
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-
-const transactions = [
-  { icon: '🛒', name: 'Grocery Market', category: 'Food', amount: '-$48.20' },
-  { icon: '🚌', name: 'City Transit', category: 'Transport', amount: '-$32.50' },
-  { icon: '💰', name: 'Monthly paycheck', category: 'Income', amount: '+$2,840.00' },
-];
-
 export default function HomeScreen() {
   return (
     <ThemedView style={styles.screen}>

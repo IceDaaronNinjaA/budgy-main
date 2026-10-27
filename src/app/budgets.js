@@ -4,3 +4,4 @@ import { ThemedView } from '@/components/themed-view';
 export default function BudgetsScreen() {
     return _jsx(ThemedView, { style: { flex: 1, alignItems: 'center', justifyContent: 'center' }, children: _jsx(ThemedText, { type: "title", children: "Budgets" }) });
 }
+``
