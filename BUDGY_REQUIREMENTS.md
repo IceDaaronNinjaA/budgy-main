@@ -27,7 +27,7 @@
 14. [Firestore data model and field dictionary](#14-firestore-data-model-and-field-dictionary)
 15. [Transaction integrity, automation, and lifecycle](#15-transaction-integrity-automation-and-lifecycle)
 16. [Security, privacy, and nonfunctional requirements](#16-security-privacy-and-nonfunctional-requirements)
-17. [Future Tamodachi system and initial balancing](#17-future-tamodachi-system-and-initial-balancing)
+17. [Future Tamagotchi system and initial balancing](#17-future-tamagotchi-system-and-initial-balancing)
 18. [Acceptance scenarios and tests](#18-acceptance-scenarios-and-tests)
 19. [Current repository gap map](#19-current-repository-gap-map)
 20. [Rules for developers and coding agents](#20-rules-for-developers-and-coding-agents)
@@ -43,7 +43,7 @@ Provide one unambiguous description of what Budgy does, its data structures, app
 
 ### 1.2 Evidence hierarchy
 
-1. **Team-confirmed product decisions:** Statements gathered in the November 2026 scope discussion: manual financial entry; recurring category budgets; deadline-based savings goals; daily/weekly progress; no bank integration; Tamodachi after financial functionality.
+1. **Team-confirmed product decisions:** Statements gathered in the November 2026 scope discussion: manual financial entry; recurring category budgets; deadline-based savings goals; daily/weekly progress; no bank integration; Tamagotchi after financial functionality.
 2. **Subsequent accepted design decisions:** One tracked pool of funds; envelope-style allocations; automatic recurring funding; overspending displayed as a negative variance and covered from unallocated funds; unused budget money reset-and-released; sensible defaults for edge cases and pet balancing.
 3. **Supporting references:** Team README, whiteboard, Figma screenshots, Trello screenshots, and repository inspection.
 4. **Implementation observations:** Current code is useful evidence of progress, **not** an overriding specification.
@@ -63,7 +63,7 @@ Requirements prefixed `FR-`, `DATA-`, `NFR-`, `PET-`, or `TEST-` are normative f
 
 ### 2.1 Product statement
 
-**Budgy is a mobile-first, manually maintained personal finance application that records income and expenses, allocates existing funds to recurring spending budgets and time-bound savings goals, and visualizes spending and savings progress.** It does not access bank accounts or claim that self-reported balances equal a bank's records. After the financial MVP is complete, a virtual Tamodachi pet will react to progress on budgets and savings goals.
+**Budgy is a mobile-first, manually maintained personal finance application that records income and expenses, allocates existing funds to recurring spending budgets and time-bound savings goals, and visualizes spending and savings progress.** It does not access bank accounts or claim that self-reported balances equal a bank's records. After the financial MVP is complete, a virtual Tamagotchi pet will react to progress on budgets and savings goals.
 
 ### 2.2 Primary objectives
 
@@ -111,7 +111,7 @@ Individual users manually track a **single conceptual cash pool**; there is no b
 
 ### 3.2 Future / after financial MVP
 
-- **FUTURE-01** Tamodachi pet: daily health, XP, exponential levels, health capacity, recovery, evolution visuals.
+- **FUTURE-01** Tamagotchi pet: daily health, XP, exponential levels, health capacity, recovery, evolution visuals.
 - **FUTURE-02** Optional budget rollover preference (MVP always reset-and-release).
 - **FUTURE-03** Pet customization, alternative species, accessories, advanced animations.
 - **FUTURE-04** Optional reminders/notifications, advanced financial charts, additional budget recurrence patterns, automatic contribution rules.
@@ -883,7 +883,7 @@ Budgy is **a user-maintained planning tool**, not a bank, payment processor, or 
 
 ---
 
-## 17. Future Tamodachi system and initial balancing
+## 17. Future Tamagotchi system and initial balancing
 
 **Phase:** **FUTURE / POST-MVP**, but behavior specified now to avoid future conflicts. Game tuning values in this section are **ADOPTED INITIAL DEFAULTS**, intentionally configurable and revisable after playtesting. They shall not influence financial ledger correctness.
 
