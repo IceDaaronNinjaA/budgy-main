@@ -1,4 +1,4 @@
-import { getTransactions } from './transactions';
+import { getTransactions } from './TransactionService';
 
 export async function getUserBalance(userId) {
   const transactions = await getTransactions(userId);

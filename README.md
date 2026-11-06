@@ -1,59 +1,65 @@
-# Welcome to your Expo app 👋
+# Budgy
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Budgy is a mobile-first personal finance application built with **Expo, React Native,
+JavaScript, and Firebase Firestore**. Its financial MVP focuses on manual income and
+expense tracking, budget allocations, and deadline-based savings goals. A Tamagotchi-style
+pet is planned for **after** the financial MVP.
 
-## Get started
+> This project is under active development. A screen being present does not mean
+> its underlying financial or database functionality is complete.
 
-1. Install dependencies
+## Project documentation
 
-   ```bash
-   npm install
-   ```
+- **[Requirements and acceptance criteria](BUDGY_REQUIREMENTS.md)** — authoritative
+  scope, accounting rules, data models, and proposed architecture.
+- **[Development and coding-agent rules](AGENTS.md)** — required conventions
+  for contributors and coding assistants.
+- **[Claude instructions](CLAUDE.md)** — loads the shared agent rules and requirements.
+- **[Documentation index](docs/README.md)** — how the documentation fits together.
+- **[Domain module guidance](src/domain/README.md)** — where financial calculations belong.
+- **[Validation module guidance](src/validation/README.md)** — input and data validation.
+- **[Testing guidance](tests/README.md)** — planned test organization.
 
-2. Start the app.
+## Getting started
 
-   ```bash
-   npx expo start
-   ```
+1. Install Node.js and the dependencies appropriate for the repository.
+2. Run `npm ci` from the repository root.
+3. Set up required local Firebase environment variables for features that use
+   Firestore. Do not commit `.env` files or credentials.
+4. Run `npx expo start` and follow its prompt to launch the app.
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### Checks
 
 ```bash
-npm run reset-project
+npm run lint
+npx expo-doctor
+npx expo export --platform web --output-dir /tmp/budgy-web-check
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Expo Doctor may flag SDK patch-version mismatches until the separate dependency
+update is merged. Do not silently upgrade dependencies in an unrelated feature PR.
 
-### Other setup steps
+## Code layout
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- This project uses JavaScript and Expo Router for file-based navigation.
+| Path | Responsibility |
+| --- | --- |
+| `src/app/` | Expo Router route entrypoints and navigation layout |
+| `src/screens/` | Screen implementations (`*Screen.jsx`) |
+| `src/components/` | Reusable presentation components |
+| `src/hooks/` | React hooks |
+| `src/services/` | Firestore access and use-case orchestration (`*Service.js`) |
+| `src/domain/` | Pure financial calculations (modules added as needed) |
+| `src/validation/` | Input and data validation (modules added as needed) |
+| `tests/` | Automated tests (added with implemented features) |
+| `config/` | Existing Firebase configuration |
 
-## Learn more
+The target file map and naming rules are in
+[requirements §13.3](BUDGY_REQUIREMENTS.md). Do not create empty code modules just
+to match the proposed tree.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Contributing
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-
-
-.
+Open a focused branch and pull request into `main`. Read the requirements and
+agent guidance before making changes, and use the
+[pull request template](.github/PULL_REQUEST_TEMPLATE.md) to record the
+requirements affected and checks performed.

@@ -10,7 +10,7 @@ import {
   where,
 } from 'firebase/firestore';
 
-import { db } from '../config/firebase';
+import { db } from '../../config/firebase';
 
 const goalsCollection = collection(db, 'goals');
 
