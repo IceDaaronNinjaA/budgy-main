@@ -544,7 +544,7 @@ App launch
 - React Native + JavaScript, Expo + Expo Router.
 - Firebase Authentication (planned) and Cloud Firestore.
 - Existing repository baseline at inspection: Expo `~57.0.28`, React Native `0.86.3`, Firebase `^13.1.0`; an SDK-upgrade PR is outstanding. **Check live `package.json` before changing dependencies.**
-- Main current routes under `src/app/`; services currently under root `services/`; Firebase config under `config/`.
+- As of the structural-refactor branch (November 6, 2026), `src/app/` contains thin Expo Router entrypoints, `src/screens/` contains screen implementations, and `src/services/` contains the renamed Firestore service modules. Firebase initialization still lives in root `config/`. The refactor is **not yet merged into `main`**.
 
 ### 13.2 Logical layers
 
@@ -571,15 +571,17 @@ Expo Router screens and reusable components
 
 ### 13.3 Proposed target file map and naming conventions
 
-**Status: TARGET ARCHITECTURE — not the current repository tree.** The paths below describe *where code belongs when it is implemented*. They are **not** instructions to create every file, rename the entire repository immediately, or relocate unfinished work. Existing source files are listed separately in §19. Keep this specification **at the repository root** as `BUDGY_REQUIREMENTS.md`, where teammates can find it easily.
+**Status: CURRENT + TARGET ARCHITECTURE (refactor branch, November 6, 2026).** Existing route wrappers, screens, renamed services, and directory README files are now present on `refactor/structure-naming`; other modules in this map are **planned only**, not instructions to generate empty files. See §19 for current implementation gaps. Keep this specification **at the repository root** as `BUDGY_REQUIREMENTS.md`.
 
 To make file responsibilities obvious even when people or coding agents mention only a basename, use **descriptive, responsibility-based names**. The single exception is Expo Router: filenames in `src/app/` determine routes and must preserve appropriate route names. Each route file should normally be a small wrapper around a screen implementation in `src/screens/`.
 
 ```text
 budgy-main/
 ├── README.md
-├── AGENTS.md                         # Update separately after team approval
+├── AGENTS.md                         # EXISTING — points to this specification
+├── CLAUDE.md                        # EXISTING — loads AGENTS + requirements
 ├── BUDGY_REQUIREMENTS.md             # This specification; repository root
+├── docs/README.md                    # EXISTING — documentation index
 ├── package.json
 ├── package-lock.json
 ├── app.json
@@ -599,6 +601,7 @@ budgy-main/
 │   │   ├── budgets.js                # /budgets      → BudgetsScreen
 │   │   ├── goals.js                  # /goals        → GoalsScreen
 │   │   ├── settings.js               # /settings     → SettingsScreen
+│   │   ├── explore.js                # /explore      → ExploreScreen [existing]
 │   │   ├── login.js                  # /login        → LoginScreen [when needed]
 │   │   └── ...                       # Additional routes ONLY as actual navigation needs arise
 │   │
@@ -608,7 +611,8 @@ budgy-main/
 │   │   ├── BudgetsScreen.jsx
 │   │   ├── GoalsScreen.jsx
 │   │   ├── SettingsScreen.jsx
-│   │   └── LoginScreen.jsx
+│   │   ├── ExploreScreen.jsx         # EXISTING Expo starter screen
+│   │   └── LoginScreen.jsx           # PLANNED, not yet implemented
 │   │
 │   ├── components/                   # Reusable PRESENTATION components
 │   │   ├── BudgetCard.jsx
@@ -616,7 +620,8 @@ budgy-main/
 │   │   ├── TransactionCard.jsx
 │   │   ├── MoneyInput.jsx
 │   │   ├── ProgressBar.jsx
-│   │   ├── app-tabs.js                # EXISTING navigation component; migrate only if useful
+│   │   ├── AppTabs.js                # EXISTING native navigation implementation
+│   │   ├── AppTabs.web.js            # EXISTING web navigation implementation
 │   │   └── ...                        # Keep existing themed/UI components as needed
 │   │
 │   ├── hooks/                        # React hooks and subscription / UI state orchestration
@@ -625,7 +630,7 @@ budgy-main/
 │   │   ├── useBudgets.js
 │   │   └── useSavingsGoals.js
 │   │
-│   ├── services/                     # TARGET home for authenticated persistence/use cases
+│   ├── services/                     # EXISTING home for persistence; further modules planned
 │   │   ├── AuthService.js
 │   │   ├── TransactionService.js
 │   │   ├── BalanceService.js
@@ -636,7 +641,8 @@ budgy-main/
 │   │   ├── CategoryService.js
 │   │   └── UserService.js
 │   │
-│   ├── domain/                       # Pure, deterministic FINANCIAL business logic
+│   ├── domain/                       # EXISTS with README; calculations below PLANNED
+│   │   ├── README.md                  # EXISTING — boundaries and conventions
 │   │   ├── MoneyCalculations.js       # Integer cents, formatting-neutral money arithmetic
 │   │   ├── BalanceCalculations.js     # Total, unallocated, reserved, deficits
 │   │   ├── BudgetCalculations.js      # Limit variance and period summaries
@@ -645,7 +651,8 @@ budgy-main/
 │   │   ├── RecurrenceCalculations.js  # Occurrence dates and period boundaries
 │   │   └── LedgerCalculations.js      # Event/posting balance rules
 │   │
-│   ├── validation/                   # Input & entity validation; no database I/O
+│   ├── validation/                   # EXISTS with README; validators below PLANNED
+│   │   ├── README.md                  # EXISTING — boundaries and conventions
 │   │   ├── TransactionValidation.js
 │   │   ├── BudgetValidation.js
 │   │   ├── SavingsGoalValidation.js
@@ -658,7 +665,8 @@ budgy-main/
 ├── assets/                           # Existing imagery, icons, fonts, etc.
 ├── monsters/                         # Existing pixel-art source and animations (future pet)
 ├── scripts/                          # Existing maintenance/dev scripts; guard seed operations
-├── tests/                            # Create tests only alongside real features
+├── tests/                            # EXISTS with README; tests below PLANNED
+│   ├── README.md                      # EXISTING — testing priorities
 │   ├── BalanceCalculations.test.js
 │   ├── BudgetCalculations.test.js
 │   ├── SavingsCalculations.test.js
@@ -691,15 +699,15 @@ export { default } from '../screens/BudgetsScreen';
 
 **Boundary example:** `BudgetsScreen.jsx` presents amounts and collects actions; `useBudgets.js` coordinates loading; `BudgetService.js` reads/writes Firestore using authenticated identity; `BudgetCalculations.js` computes limits, variances, and period totals; `BudgetValidation.js` rejects invalid input. Exactly one authoritative implementation of each financial rule should exist.
 
-**Migration and creation policy:**
+**Migration status and creation policy:**
 
 1. **Do not create placeholder files.** The tree is a map of destinations and responsibilities, not a required set of empty modules. A missing module may be added when its feature is implemented.
-2. **Do not perform a blanket rename.** Current route implementations under `src/app/`, root-level `services/`, and existing Firebase config remain valid until a dedicated, coordinated refactor moves them.
+2. **Structural migration completed on the refactor branch, pending PR merge.** Existing screen implementations now live in `src/screens/`, route wrappers remain in `src/app/`, and existing root `services/` modules have been renamed into `src/services/`. Do not recreate the old paths. `config/firebase.js` and `config/firebase-config.js` remain in place until a separate coordinated change.
 3. **Use `git mv` and update imports/re-exports** when migrating real files. Validate Expo Router navigation, module aliases, Firebase initialization, tests, and bundler behavior after each coherent move.
-4. **Do not duplicate the service layer.** During migration, update consumers to the new location and remove/redirect old modules deliberately. Avoid having independently maintained `services/goals.js` and `src/services/SavingsGoalService.js` implementations.
+4. **Do not duplicate the service layer.** The old root `services/` directory was removed by the structural refactor. Extend `src/services/` rather than restoring parallel implementations (for example, `services/goals.js` alongside `src/services/SavingsGoalService.js`).
 5. **Preserve documented data semantics.** Moving or renaming a file must not silently modify database schema, balance logic, authentication, or historical records.
 6. **Coordinate shared changes.** A file move affecting active team branches should be announced and reviewed as a focused pull request to minimize merge conflicts. Do not mix mass renaming with major new features.
-7. **Keep documentation references accurate.** If the team approves a different concrete filename, update this target map, §19 migration references, relevant tests, and `AGENTS.md` (after its separate adoption) together.
+7. **Keep documentation references accurate.** If a filename or module boundary changes, update this map, §19, tests, `AGENTS.md`, and the documentation index as appropriate in the same change.
 
 ### 13.4 Public domain-operation contracts (conceptual)
 
@@ -1110,27 +1118,27 @@ Every scenario should be an automated domain test where feasible and an end-to-e
 
 ## 19. Current repository gap map
 
-**Observation snapshot:** GitHub repository read on November 5, 2026. Earlier audit showed `main` commit `ab197e01bdea9c7d6bb2a6f7ec1c4573668409d8` (October 28); inspect latest commit again before implementation. These are **observed gaps**, not personal assignments.
+**Observation snapshot:** `refactor/structure-naming`, reviewed November 6, 2026 (head `0473070` before this documentation change). These are **implementation gaps, not personal assignments**. The refactor branch has not yet been merged to `main`; confirm the active branch and actual code before implementation.
 
 | Existing asset | Observed behavior | Required alignment |
 |---|---|---|
-| `src/app/index.js` | Visual dashboard with sample values | Replace with signed-in, derived total/unallocated/reserves/summary |
-| `src/app/transactions.js` | Placeholder | Add complete manual transaction entry/history/correction workflows |
-| `src/app/budgets.js` | Placeholder | Add funded budgets, periods, reserve and variance display |
-| `src/app/goals.js` | Local recurring task/habit UI (`useState`) | Replace/repurpose for **monetary savings targets** and persistent goal allocations |
-| `src/app/settings.js` | Mostly visual sample settings | User profile, relevant preferences, management links, logout |
-| `src/components/app-tabs.js` | Existing five tabs including Budgets | Keep Budgets reachable; reconcile with Figma once team selects navigation |
-| `services/transactions.js` | Add/get transactions; optional userId; float-ish amount | Require authenticated ownership, integer cents, atomic accounting, edit/reverse |
-| `services/balance.js` | Sum income−expense from transaction array | Add opening balance, reserve accounting, journal-based summary, safe numeric rules |
-| `services/goals.js` | CRUD for goal docs with monetary target fields | Build auditable contribution transfers and lifecycle; enforce ownership |
-| `services/categories.js` | Basic category persistence | Align with user-scoped category IDs and categories on transactions |
-| `services/users.js` | Basic profile persistence | Integrate Auth UID and onboarding data |
+| `src/screens/DashboardScreen.jsx` (route: `src/app/index.js`) | Visual dashboard with sample values | Replace with signed-in, derived total/unallocated/reserves/summary |
+| `src/screens/TransactionsScreen.jsx` (route: `src/app/transactions.js`) | Placeholder | Add complete manual transaction entry/history/correction workflows |
+| `src/screens/BudgetsScreen.jsx` (route: `src/app/budgets.js`) | Placeholder | Add funded budgets, periods, reserve and variance display |
+| `src/screens/GoalsScreen.jsx` (route: `src/app/goals.js`) | Local recurring task/habit UI (`useState`) | Replace/repurpose for **monetary savings targets** and persistent goal allocations |
+| `src/screens/SettingsScreen.jsx` (route: `src/app/settings.js`) | Mostly visual sample settings | User profile, relevant preferences, management links, logout |
+| `src/components/AppTabs.js` / `AppTabs.web.js` | Existing five tabs including Budgets | Keep Budgets reachable; reconcile with Figma once team selects navigation |
+| `src/services/TransactionService.js` | Add/get transactions; optional userId; float-ish amount | Require authenticated ownership, integer cents, atomic accounting, edit/reverse |
+| `src/services/BalanceService.js` | Sum income−expense from transaction array | Add opening balance, reserve accounting, journal-based summary, safe numeric rules |
+| `src/services/SavingsGoalService.js` | CRUD for goal docs with monetary target fields | Build auditable contribution transfers and lifecycle; enforce ownership |
+| `src/services/CategoryService.js` | Basic category persistence | Align with user-scoped category IDs and categories on transactions |
+| `src/services/UserService.js` | Basic profile persistence | Integrate Auth UID and onboarding data |
 | `config/firebase*.js` | Firestore setup; public env vars | Add Auth, security rules, indexes, migrations |
 | `scripts/seed.mjs` | Seed example Firestore records | Adapt to new schema; seed **only** emulator/dev databases; never production accidentally |
-| `AGENTS.md` | Expo/React Native version-aware guidance | **Later**, after team adoption, prepend/append link to this specification; preserve existing useful guidance |
-| Tests/CI | No established project tests/CI observed | Introduce unit + emulator tests and PR checks |
+| `AGENTS.md` + `CLAUDE.md` | Shared Expo guidance plus explicit requirements references | Keep the instructions in sync with this specification; both now reference it |
+| `src/domain/README.md`, `src/validation/README.md`, `tests/README.md` | Directories documented; no corresponding feature modules/test runner yet | Implement modules and automated tests alongside features, then add CI checks |
 
-**CRITICAL INTEGRATION WARNING:** The current `goals.js` UI models recurring task completion, but the team's clarified goals model is *monetary savings*. Do not connect the two unchanged simply to make a Trello card appear complete.
+**CRITICAL INTEGRATION WARNING:** The current `GoalsScreen.jsx` UI models recurring task completion, but the team's clarified goals model is *monetary savings*. Do not connect the two unchanged simply to make a Trello card appear complete.
 
 **Migration rule:** If existing Firestore top-level data must be retained, create an explicit migration plan/adapter and verify access controls; do not silently lose user records or seed production data.
 
@@ -1164,8 +1172,8 @@ Before modifying a feature:
 - **Never mutate other users' records** or query without a signed-in UID.
 - **Never assume Figma screenshots commit every pictured setting** to MVP.
 - **Never introduce another same-named feature module** when a responsibility-suffixed target module exists in §13.3; keep route filenames as the Expo Router exception.
-- **Never migrate root `services/` piecemeal into competing implementations** without updating imports, tests, and dependencies in a coordinated change.
-- **Never update `AGENTS.md` as part of this document's creation**; link it only after team approval, in a separate change.
+- **Never reintroduce the removed root `services/` directory** or create parallel implementations; coordinate any further module moves with updated imports, tests, and dependencies.
+- **Keep `AGENTS.md`, `CLAUDE.md`, and `README.md` aligned** with the requirements and active repository layout when conventions change.
 
 ### 20.3 Suggested PR description format
 
@@ -1242,7 +1250,7 @@ None of these should block *financial MVP* development:
 1. Review §2 (vision), §3 (scope), §4 (invariants), §11 (worked numbers), and §21 (decisions) as a team.
 2. Resolve any objections in writing, update version, and get team agreement.
 3. Keep `BUDGY_REQUIREMENTS.md` in the repository root; it is the discoverable source-of-truth filename.
-4. **Then**, in a separate change, link to it from `AGENTS.md` and README; inform teammates to have each coding agent read it before substantial changes.
+4. **Completed on the refactor branch:** `README.md`, `AGENTS.md`, and `CLAUDE.md` now reference this specification. Keep those entrypoints synchronized after future changes.
 5. Use requirement IDs and test IDs on Trello/GitHub tasks; keep one document version authoritative.
 
 ---
