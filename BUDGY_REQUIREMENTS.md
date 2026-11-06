@@ -1,9 +1,9 @@
 # Budgy — Product Requirements & Technical Specification
 
 **Document ID:** BUDGY-SRS  
-**Version:** 1.0 — proposed team baseline  
+**Version:** 1.1 — proposed team baseline (descriptive module naming)  
 **Prepared:** November 5, 2026  
-**Status:** Working specification for team review; not yet merged into GitHub  
+**Status:** Working specification for team review; repository contains an earlier version; this revision is not yet committed  
 **Repository:** https://github.com/IceDaaronNinjaA/budgy-main  
 **Intended readers:** Team members, reviewers, future contributors, and coding agents
 
@@ -569,49 +569,137 @@ Expo Router screens and reusable components
     Future: trusted pet evaluator
 ```
 
-### 13.3 Proposed file map (not claimed to exist)
+### 13.3 Proposed target file map and naming conventions
+
+**Status: TARGET ARCHITECTURE — not the current repository tree.** The paths below describe *where code belongs when it is implemented*. They are **not** instructions to create every file, rename the entire repository immediately, or relocate unfinished work. Existing source files are listed separately in §19. Keep this specification **at the repository root** as `BUDGY_REQUIREMENTS.md`, where teammates can find it easily.
+
+To make file responsibilities obvious even when people or coding agents mention only a basename, use **descriptive, responsibility-based names**. The single exception is Expo Router: filenames in `src/app/` determine routes and must preserve appropriate route names. Each route file should normally be a small wrapper around a screen implementation in `src/screens/`.
 
 ```text
 budgy-main/
-├── AGENTS.md                    # Add pointer after team approves specification
-├── docs/
-│   └── BUDGY_REQUIREMENTS.md    # This file (suggested repository location)
+├── README.md
+├── AGENTS.md                         # Update separately after team approval
+├── BUDGY_REQUIREMENTS.md             # This specification; repository root
+├── package.json
+├── package-lock.json
+├── app.json
+├── eslint.config.js
+├── jsconfig.json
+│
+├── config/                           # Existing config remains until deliberate migration
+│   ├── firebase-config.js            # EXISTING environment configuration
+│   ├── firebase.js                   # EXISTING Firebase initialization
+│   └── firebaseClient.js             # PROPOSED consolidated module (replace, not duplicate)
+│
 ├── src/
-│   ├── app/
-│   │   ├── _layout.js
-│   │   ├── index.js              # dashboard
-│   │   ├── transactions.js
-│   │   ├── budgets.js
-│   │   ├── goals.js
-│   │   ├── settings.js
-│   │   ├── login.js              # proposed
-│   │   └── ...                   # proposed modal/detail routes
-│   ├── components/              # presentation-only reusable controls
-│   ├── hooks/                   # auth/session/query hooks
-│   └── domain/                  # proposed pure business logic
-│       ├── money.js
-│       ├── ledger.js
-│       ├── budgets.js
-│       ├── savings.js
-│       └── periods.js
-├── services/                    # Firestore implementations and use cases
-│   ├── transactions.js          # existing, must be revised
-│   ├── balance.js               # existing, must be revised
-│   ├── goals.js                 # existing, must be revised
-│   ├── categories.js            # existing
-│   ├── users.js                 # existing
-│   ├── allocations.js           # proposed
-│   ├── budgets.js               # proposed
-│   └── bills.js                 # proposed
-├── config/
-│   ├── firebase-config.js
-│   └── firebase.js
-├── firestore.rules              # proposed, deployable security rules
-├── firestore.indexes.json       # as needed
-└── tests/                       # proposed, unit/integration cases
+│   ├── app/                          # EXPO ROUTER — route names are significant
+│   │   ├── _layout.js                # App navigation / auth routing
+│   │   ├── index.js                  # /             → DashboardScreen
+│   │   ├── transactions.js           # /transactions → TransactionsScreen
+│   │   ├── budgets.js                # /budgets      → BudgetsScreen
+│   │   ├── goals.js                  # /goals        → GoalsScreen
+│   │   ├── settings.js               # /settings     → SettingsScreen
+│   │   ├── login.js                  # /login        → LoginScreen [when needed]
+│   │   └── ...                       # Additional routes ONLY as actual navigation needs arise
+│   │
+│   ├── screens/                      # Full screen implementations; NOT Expo Router routes
+│   │   ├── DashboardScreen.jsx
+│   │   ├── TransactionsScreen.jsx
+│   │   ├── BudgetsScreen.jsx
+│   │   ├── GoalsScreen.jsx
+│   │   ├── SettingsScreen.jsx
+│   │   └── LoginScreen.jsx
+│   │
+│   ├── components/                   # Reusable PRESENTATION components
+│   │   ├── BudgetCard.jsx
+│   │   ├── SavingsGoalCard.jsx
+│   │   ├── TransactionCard.jsx
+│   │   ├── MoneyInput.jsx
+│   │   ├── ProgressBar.jsx
+│   │   ├── app-tabs.js                # EXISTING navigation component; migrate only if useful
+│   │   └── ...                        # Keep existing themed/UI components as needed
+│   │
+│   ├── hooks/                        # React hooks and subscription / UI state orchestration
+│   │   ├── useAuth.js
+│   │   ├── useTransactions.js
+│   │   ├── useBudgets.js
+│   │   └── useSavingsGoals.js
+│   │
+│   ├── services/                     # TARGET home for authenticated persistence/use cases
+│   │   ├── AuthService.js
+│   │   ├── TransactionService.js
+│   │   ├── BalanceService.js
+│   │   ├── BudgetService.js
+│   │   ├── SavingsGoalService.js
+│   │   ├── AllocationService.js
+│   │   ├── RecurringBillService.js
+│   │   ├── CategoryService.js
+│   │   └── UserService.js
+│   │
+│   ├── domain/                       # Pure, deterministic FINANCIAL business logic
+│   │   ├── MoneyCalculations.js       # Integer cents, formatting-neutral money arithmetic
+│   │   ├── BalanceCalculations.js     # Total, unallocated, reserved, deficits
+│   │   ├── BudgetCalculations.js      # Limit variance and period summaries
+│   │   ├── SavingsCalculations.js     # Contribution totals, pace, deadlines
+│   │   ├── AllocationCalculations.js  # Transfer/allocation invariants
+│   │   ├── RecurrenceCalculations.js  # Occurrence dates and period boundaries
+│   │   └── LedgerCalculations.js      # Event/posting balance rules
+│   │
+│   ├── validation/                   # Input & entity validation; no database I/O
+│   │   ├── TransactionValidation.js
+│   │   ├── BudgetValidation.js
+│   │   ├── SavingsGoalValidation.js
+│   │   ├── AllocationValidation.js
+│   │   └── RecurringBillValidation.js
+│   │
+│   └── constants/
+│       └── theme.js                  # Existing theme; no naming migration necessary
+│
+├── assets/                           # Existing imagery, icons, fonts, etc.
+├── monsters/                         # Existing pixel-art source and animations (future pet)
+├── scripts/                          # Existing maintenance/dev scripts; guard seed operations
+├── tests/                            # Create tests only alongside real features
+│   ├── BalanceCalculations.test.js
+│   ├── BudgetCalculations.test.js
+│   ├── SavingsCalculations.test.js
+│   ├── AllocationCalculations.test.js
+│   └── TransactionService.test.js
+├── firestore.rules                   # Proposed deployable user-isolation rules
+└── firestore.indexes.json            # Proposed indexes, as queries require them
 ```
 
-**Important:** Do not embed accounting calculations independently inside every screen. Centralize calculations in pure domain functions and keep service methods responsible for authenticated reads/writes. Avoid route files containing unrelated reusable non-route utilities.
+**Naming rules (target architecture):**
+
+| Responsibility | Filename rule | Example | Scope/constraints |
+|---|---|---|---|
+| Expo Router route | Lowercase route filename | `src/app/budgets.js` | **Do not rename for style**; route paths and navigation depend on it. |
+| Entire application screen | `PascalCaseScreen.jsx` | `src/screens/BudgetsScreen.jsx` | Export a React screen; route imports/re-exports it. `.js` also works for JSX if consistent with project tooling. |
+| Reusable visual component | `PascalCase.jsx` | `src/components/BudgetCard.jsx` | Presentation, interactions, and callbacks; avoid ledger writes/calculations here. |
+| Authenticated data/service operations | `PascalCaseService.js` | `src/services/BudgetService.js` | Own Firestore I/O and atomic transaction/use-case orchestration; call domain functions for formulas. |
+| Pure financial calculation | `PascalCaseCalculations.js` | `src/domain/BudgetCalculations.js` | Deterministic, no Firebase, no UI state, tested with integer cents. |
+| Validation | `PascalCaseValidation.js` | `src/validation/BudgetValidation.js` | Validate inputs/entity invariants; no Firestore access. |
+| React hook | `usePascalCase.js` | `src/hooks/useBudgets.js` | Subscribe/load state and expose actions for screens. |
+| Unit/integration test | `<TargetName>.test.js` | `tests/BudgetCalculations.test.js` | Match module under test; test runner/dependencies added when selected. |
+| Firebase initialization | Descriptive singular name | `config/firebaseClient.js` | **Proposed replacement** for current setup; do not initialize two app instances. |
+
+**Expo Router example (thin route file):**
+
+```javascript
+// src/app/budgets.js — preserves the /budgets route
+export { default } from '../screens/BudgetsScreen';
+```
+
+**Boundary example:** `BudgetsScreen.jsx` presents amounts and collects actions; `useBudgets.js` coordinates loading; `BudgetService.js` reads/writes Firestore using authenticated identity; `BudgetCalculations.js` computes limits, variances, and period totals; `BudgetValidation.js` rejects invalid input. Exactly one authoritative implementation of each financial rule should exist.
+
+**Migration and creation policy:**
+
+1. **Do not create placeholder files.** The tree is a map of destinations and responsibilities, not a required set of empty modules. A missing module may be added when its feature is implemented.
+2. **Do not perform a blanket rename.** Current route implementations under `src/app/`, root-level `services/`, and existing Firebase config remain valid until a dedicated, coordinated refactor moves them.
+3. **Use `git mv` and update imports/re-exports** when migrating real files. Validate Expo Router navigation, module aliases, Firebase initialization, tests, and bundler behavior after each coherent move.
+4. **Do not duplicate the service layer.** During migration, update consumers to the new location and remove/redirect old modules deliberately. Avoid having independently maintained `services/goals.js` and `src/services/SavingsGoalService.js` implementations.
+5. **Preserve documented data semantics.** Moving or renaming a file must not silently modify database schema, balance logic, authentication, or historical records.
+6. **Coordinate shared changes.** A file move affecting active team branches should be announced and reviewed as a focused pull request to minimize merge conflicts. Do not mix mass renaming with major new features.
+7. **Keep documentation references accurate.** If the team approves a different concrete filename, update this target map, §19 migration references, relevant tests, and `AGENTS.md` (after its separate adoption) together.
 
 ### 13.4 Public domain-operation contracts (conceptual)
 
@@ -1062,6 +1150,7 @@ Before modifying a feature:
 6. Preserve stable IDs, user ownership, audit records, integer cents, and idempotency.
 7. Add or update tests referenced by affected requirement IDs.
 8. Do not claim a feature complete based solely on matching Figma visuals.
+9. Follow §13.3 for *new* module names and responsibilities. Treat paths there as a **target map**, not a mandate to create empty files or rename unrelated code; preserve Expo Router route names.
 
 ### 20.2 Design constraints
 
@@ -1074,6 +1163,8 @@ Before modifying a feature:
 - **Never silently implement habits** as the savings-goal model.
 - **Never mutate other users' records** or query without a signed-in UID.
 - **Never assume Figma screenshots commit every pictured setting** to MVP.
+- **Never introduce another same-named feature module** when a responsibility-suffixed target module exists in §13.3; keep route filenames as the Expo Router exception.
+- **Never migrate root `services/` piecemeal into competing implementations** without updating imports, tests, and dependencies in a coordinated change.
 - **Never update `AGENTS.md` as part of this document's creation**; link it only after team approval, in a separate change.
 
 ### 20.3 Suggested PR description format
@@ -1150,10 +1241,10 @@ None of these should block *financial MVP* development:
 
 1. Review §2 (vision), §3 (scope), §4 (invariants), §11 (worked numbers), and §21 (decisions) as a team.
 2. Resolve any objections in writing, update version, and get team agreement.
-3. Place as `docs/BUDGY_REQUIREMENTS.md` (or equivalent) in the repository.
+3. Keep `BUDGY_REQUIREMENTS.md` in the repository root; it is the discoverable source-of-truth filename.
 4. **Then**, in a separate change, link to it from `AGENTS.md` and README; inform teammates to have each coding agent read it before substantial changes.
 5. Use requirement IDs and test IDs on Trello/GitHub tasks; keep one document version authoritative.
 
 ---
 
-**End of Budgy SRS v1.0.**
+**End of Budgy SRS v1.1.**
