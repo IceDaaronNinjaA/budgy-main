@@ -7,7 +7,7 @@ import {
   where,
 } from 'firebase/firestore';
 
-import { db } from '../config/firebase';
+import { db } from '../../config/firebase';
 
 const categoriesCollection = collection(db, 'categories');
 

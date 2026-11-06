@@ -1,6 +1,2 @@
-import { jsx as _jsx } from "react/jsx-runtime";
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-export default function BudgetsScreen() {
-    return _jsx(ThemedView, { style: { flex: 1, alignItems: 'center', justifyContent: 'center' }, children: _jsx(ThemedText, { type: "title", children: "Budgets" }) });
-}
+// Expo Router entrypoint; screen implementation lives in src/screens/.
+export { default } from '../screens/BudgetsScreen';
