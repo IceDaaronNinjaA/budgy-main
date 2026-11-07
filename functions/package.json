@@ -7,7 +7,8 @@
     "node": "24"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "sync-domain": "node scripts/sync-domain.cjs"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0",
