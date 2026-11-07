@@ -1,5 +1,6 @@
 'use strict';
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const reconciliation = require('./services/FinancialReconciliationService');
 const { initializeApp } = require('firebase-admin/app');
 const operations = require('./services/FinancialOperationsService');
 const savings = require('./services/SavingsGoalService');
@@ -12,6 +13,7 @@ const periodClose = require('./services/BudgetPeriodClosureService');
 
 initializeApp();
 const options = { region: 'us-central1' };
+exports.reconcileFinancialSchedule = onCall(options, reconciliation.reconcileFinancialSchedule);
 
 exports.backendHealthCheck = onCall(options, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'You must be signed in.');
