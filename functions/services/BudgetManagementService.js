@@ -70,6 +70,10 @@ async function perform(request, action) {
       // Firestore document ID is at most 100+1+10 = 111 characters.
       const periodId = `${data.budgetId}_${period.startDate}`;
       periodRef = base.collection('budgetPeriods').doc(periodId);
+      if (rule.data().openPeriodId) {
+        if (rule.data().openPeriodId === periodId) throw new HttpsError('already-exists', 'Period already exists.');
+        throw new HttpsError('failed-precondition', 'Close the previous budget period first.');
+      }
       const existing = await tx.get(periodRef);
       if (existing.exists) throw new HttpsError('already-exists', 'Period already exists.');
       result = { periodId, budgetId: data.budgetId, ...period, limitCents: rule.data().limitCents,
@@ -87,7 +91,10 @@ async function perform(request, action) {
     if (action === 'create') tx.create(ruleRef, { ...result, schemaVersion: 1, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     if (action === 'update') tx.update(ruleRef, { name: data.name, categoryId: data.categoryId, limitCents: data.limitCents, updatedAt: FieldValue.serverTimestamp() });
     if (action === 'pause') tx.update(ruleRef, { paused: data.paused, updatedAt: FieldValue.serverTimestamp() });
-    if (action === 'open') tx.create(periodRef, { ...result, schemaVersion: 1, createdAt: FieldValue.serverTimestamp() });
+    if (action === 'open') {
+      tx.create(periodRef, { ...result, schemaVersion: 1, createdAt: FieldValue.serverTimestamp() });
+      tx.update(ruleRef, { openPeriodId: result.periodId, updatedAt: FieldValue.serverTimestamp() });
+    }
     tx.create(receiptRef, { requestId: data.requestId, fingerprint, kind: `budget_${action}`,
       status: 'committed', result, createdAt: FieldValue.serverTimestamp() });
     return { ...result, duplicate: false };

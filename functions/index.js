@@ -5,6 +5,7 @@ const operations = require('./services/FinancialOperationsService');
 const categories = require('./services/CategoryManagementService');
 const corrections = require('./services/TransactionCorrectionService');
 const budgets = require('./services/BudgetManagementService');
+const periodClose = require('./services/BudgetPeriodClosureService');
 
 initializeApp();
 const options = { region: 'us-central1' };
@@ -26,5 +27,8 @@ for (const [name, handler] of Object.entries(corrections)) {
 }
 
 for (const [name, handler] of Object.entries(budgets)) {
+  exports[name] = onCall(options, handler);
+}
+for (const [name, handler] of Object.entries(periodClose)) {
   exports[name] = onCall(options, handler);
 }

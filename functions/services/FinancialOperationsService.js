@@ -39,6 +39,7 @@ function parseCommand(request, kind) {
   if (['allocate', 'transfer'].includes(kind)) expected.push('destinationKey');
   // TRANSACTION_METADATA_V1: optional display metadata for income and expenses.
   if (['income', 'expense'].includes(kind)) expected.push('description', 'categoryId');
+  if (kind === 'expense') expected.push('budgetPeriodId');
   if (Object.keys(data).some((key) => !expected.includes(key))) {
     throw new HttpsError('invalid-argument', 'Unrecognized command fields.');
   }
@@ -59,6 +60,7 @@ function parseCommand(request, kind) {
     ...(expected.includes('destinationKey') ? { destinationKey: data.destinationKey } : {}),
     ...(Object.hasOwn(data, 'description') ? { description: data.description.trim() } : {}),
     ...(Object.hasOwn(data, 'categoryId') ? { categoryId: data.categoryId } : {}),
+    ...(Object.hasOwn(data, 'budgetPeriodId') ? { budgetPeriodId: data.budgetPeriodId } : {}),
   };
 }
 
@@ -118,6 +120,15 @@ async function performOperation(request, kind) {
   const uid = authenticate(request);
   const command = parseCommand(request, kind);
   const { requestId, effectiveDate, amountCents } = command;
+  if (Object.hasOwn(command, 'budgetPeriodId') &&
+      (kind !== 'expense' || typeof command.budgetPeriodId !== 'string' ||
+       !/^[A-Za-z0-9_-]{1,100}_\d{4}-\d{2}-\d{2}$/.test(command.budgetPeriodId))) {
+    throw new HttpsError('invalid-argument', 'Invalid budgetPeriodId.');
+  }
+  if (kind === 'expense' && command.budgetPeriodId &&
+      !command.sourceKey?.startsWith('budget:')) {
+    throw new HttpsError('invalid-argument', 'budgetPeriodId requires a budget reserve source.');
+  }
   const ledger = await ledgerPromise;
   const eventId = `${OPERATIONS[kind].eventPrefix}_${requestId}`;
   const meta = { eventId, requestId, effectiveDate };
@@ -142,18 +153,25 @@ async function performOperation(request, kind) {
     ...(Object.hasOwn(command, 'destinationKey') ? { destinationKey: command.destinationKey } : {}),
     ...(Object.hasOwn(command, 'description') ? { description: command.description } : {}),
     ...(Object.hasOwn(command, 'categoryId') ? { categoryId: command.categoryId } : {}),
+    ...(Object.hasOwn(command, 'budgetPeriodId') ? { budgetPeriodId: command.budgetPeriodId } : {}),
   });
 
   const base = getFirestore().collection('users').doc(uid);
   const operationRef = base.collection('operations').doc(requestId);
   const summaryRef = base.collection('summaries').doc('current');
   const journalRef = base.collection('journal').doc(eventId);
+  const periodRef = kind === 'expense' && command.budgetPeriodId
+    ? base.collection('budgetPeriods').doc(command.budgetPeriodId) : null;
+  const budgetRuleRef = kind === 'expense' && command.sourceKey?.startsWith('budget:')
+    ? base.collection('budgetRules').doc(command.sourceKey.slice(7)) : null;
   const transactionRef = ['income', 'expense'].includes(kind)
     ? base.collection('transactions').doc(eventId) : null;
 
   return getFirestore().runTransaction(async (tx) => {
-    const [receiptSnap, summarySnap] = await Promise.all([
+    const [receiptSnap, summarySnap, periodSnap, ruleSnap] = await Promise.all([
       tx.get(operationRef), tx.get(summaryRef),
+      periodRef ? tx.get(periodRef) : Promise.resolve(null),
+      budgetRuleRef ? tx.get(budgetRuleRef) : Promise.resolve(null),
     ]);
     if (receiptSnap.exists) {
       const prior = receiptSnap.data();
@@ -175,6 +193,29 @@ async function performOperation(request, kind) {
       throw new HttpsError('failed-precondition', 'Initialize account before financial operations.');
     }
 
+    let nextPeriod = null;
+    if (kind === 'expense' && ruleSnap?.exists && !periodRef) {
+      throw new HttpsError('failed-precondition', 'Managed budget spending requires budgetPeriodId.');
+    }
+    if (periodRef) {
+      if (!periodSnap.exists) throw new HttpsError('not-found', 'Budget period not found.');
+      const p = periodSnap.data();
+      if (p.status !== 'open' || p.budgetId !== command.sourceKey.slice(7) ||
+          command.budgetPeriodId !== `${p.budgetId}_${p.startDate}` ||
+          effectiveDate < p.startDate || effectiveDate >= p.endExclusiveDate) {
+        throw new HttpsError('failed-precondition', 'Expense is outside an open matching budget period.');
+      }
+      if (!Number.isSafeInteger(p.spentCents) || p.spentCents < 0 ||
+          !Number.isSafeInteger(p.limitCents) || p.limitCents <= 0 ||
+          !Number.isSafeInteger(p.spentCents + amountCents)) {
+        throw new HttpsError('failed-precondition', 'Invalid budget period spending.');
+      }
+      const spentCents = p.spentCents + amountCents;
+      nextPeriod = { spentCents, varianceCents: p.limitCents - spentCents };
+      if (!Number.isSafeInteger(nextPeriod.varianceCents)) {
+        throw new HttpsError('invalid-argument', 'Budget variance overflow.');
+      }
+    }
     let event, state;
     try {
       const accounts = kind === 'opening'
@@ -189,6 +230,7 @@ async function performOperation(request, kind) {
       ...event, schemaVersion: 1,
       ...(['income', 'expense'].includes(kind) ? {
         description: command.description ?? '', categoryId: command.categoryId ?? null,
+        ...(nextPeriod ? { budgetPeriodId: command.budgetPeriodId } : {}),
       } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -197,6 +239,7 @@ async function performOperation(request, kind) {
         eventId, requestId, eventType: kind, amountCents, effectiveDate,
         ...(kind === 'expense' ? { sourceKey: command.sourceKey } : {}),
         description: command.description ?? '', categoryId: command.categoryId ?? null,
+        ...(nextPeriod ? { budgetPeriodId: command.budgetPeriodId } : {}),
         schemaVersion: 1, createdAt: FieldValue.serverTimestamp(),
       });
     }
@@ -209,6 +252,7 @@ async function performOperation(request, kind) {
     } else {
       tx.update(summaryRef, summaryData);
     }
+    if (nextPeriod) tx.update(periodRef, { ...nextPeriod, updatedAt: FieldValue.serverTimestamp() });
     tx.create(operationRef, {
       requestId, fingerprint, eventId, status: 'committed', result,
       createdAt: FieldValue.serverTimestamp(),

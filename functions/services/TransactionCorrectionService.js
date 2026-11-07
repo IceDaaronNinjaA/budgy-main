@@ -125,6 +125,10 @@ async function perform(request, kind) {
     }
     if (!txnSnap.exists || !eventSnap.exists) throw new HttpsError('not-found', 'Transaction not found.');
     const original = txnSnap.data();
+    if (original.budgetPeriodId) {
+      throw new HttpsError('failed-precondition',
+        'Period-linked expenses require period-aware correction support; correction refused to protect totals.');
+    }
     const oldEvent = eventSnap.data();
     if (!['income', 'expense'].includes(original.eventType) || original.eventType !== oldEvent.eventType) {
       throw new HttpsError('failed-precondition', 'Only original income/expense transactions can be changed.');
