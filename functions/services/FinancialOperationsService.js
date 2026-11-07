@@ -164,17 +164,21 @@ async function performOperation(request, kind) {
     ? base.collection('budgetPeriods').doc(command.budgetPeriodId) : null;
   const budgetRuleRef = kind === 'expense' && command.sourceKey?.startsWith('budget:')
     ? base.collection('budgetRules').doc(command.sourceKey.slice(7)) : null;
-  const billRuleRef = kind === 'expense' && command.sourceKey?.startsWith('bill:')
-    ? base.collection('billRules').doc(command.sourceKey.slice(5)) : null;
+  // BILL_RESERVE_GUARD_V1: resolve managed bill reservations for every generic
+  // operation, not just expenses. Dedicated bill functions maintain occurrence
+  // funding and payment state atomically with the ledger.
+  const billKeys = [...new Set([command.sourceKey, command.destinationKey]
+    .filter(key => typeof key === 'string' && key.startsWith('bill:')))];
+  const billRuleRefs = billKeys.map(key => base.collection('billRules').doc(key.slice(5)));
   const transactionRef = ['income', 'expense'].includes(kind)
     ? base.collection('transactions').doc(eventId) : null;
 
   return getFirestore().runTransaction(async (tx) => {
-    const [receiptSnap, summarySnap, periodSnap, ruleSnap, billRuleSnap] = await Promise.all([
+    const [receiptSnap, summarySnap, periodSnap, ruleSnap, ...billRuleSnaps] = await Promise.all([
       tx.get(operationRef), tx.get(summaryRef),
       periodRef ? tx.get(periodRef) : Promise.resolve(null),
       budgetRuleRef ? tx.get(budgetRuleRef) : Promise.resolve(null),
-      billRuleRef ? tx.get(billRuleRef) : Promise.resolve(null),
+      ...billRuleRefs.map(ref => tx.get(ref)),
     ]);
     if (receiptSnap.exists) {
       const prior = receiptSnap.data();
@@ -196,8 +200,9 @@ async function performOperation(request, kind) {
       throw new HttpsError('failed-precondition', 'Initialize account before financial operations.');
     }
 
-    if (kind === 'expense' && billRuleSnap?.exists) {
-      throw new HttpsError('failed-precondition', 'Managed bill payments must use confirmBillPayment.');
+    if (billRuleSnaps.some(snap => snap.exists)) {
+      throw new HttpsError('failed-precondition',
+        'Managed bill reserves must use bill occurrence funding, payment or skip commands.');
     }
     let nextPeriod = null;
     if (kind === 'expense' && ruleSnap?.exists && !periodRef) {
