@@ -39,6 +39,7 @@
   },
   "private": true,
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
     "eslint-import-resolver-alias": "^1.1.2"

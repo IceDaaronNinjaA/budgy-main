@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // User profile
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+
+      // All new financial data is stored under the user's UID.
+      match /{document=**} {
+        allow read: if isOwner(uid);
+
+        // Financial writes must go through our trusted backend.
+        // Client applications cannot directly modify financial data.
+        allow write: if false;
+      }
+    }
+
+    // Everything else, including legacy top-level collections,
+    // is inaccessible to client applications.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
