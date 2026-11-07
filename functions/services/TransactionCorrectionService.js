@@ -33,7 +33,7 @@ function parseRequest(request, kind) {
   if (typeof data.requestId !== 'string' || !ID.test(data.requestId)) {
     throw new HttpsError('invalid-argument', 'requestId must be 1–90 letters, digits, _ or -.');
   }
-  if (typeof data.transactionId !== 'string' || !/^(income|expense)_[A-Za-z0-9_-]{1,110}$/.test(data.transactionId)) {
+  if (typeof data.transactionId !== 'string' || !/^(income|expense|corrected)_[A-Za-z0-9_-]{1,110}$/.test(data.transactionId)) {
     throw new HttpsError('invalid-argument', 'transactionId must be an existing income or expense event ID.');
   }
   if (kind === 'correct') {
@@ -125,10 +125,6 @@ async function perform(request, kind) {
     }
     if (!txnSnap.exists || !eventSnap.exists) throw new HttpsError('not-found', 'Transaction not found.');
     const original = txnSnap.data();
-    if (original.budgetPeriodId) {
-      throw new HttpsError('failed-precondition',
-        'Period-linked expenses require period-aware correction support; correction refused to protect totals.');
-    }
     const oldEvent = eventSnap.data();
     if (!['income', 'expense'].includes(original.eventType) || original.eventType !== oldEvent.eventType) {
       throw new HttpsError('failed-precondition', 'Only original income/expense transactions can be changed.');
@@ -138,6 +134,49 @@ async function perform(request, kind) {
     }
     if (original.amountCents !== oldEvent.amountCents || !Array.isArray(oldEvent.postings)) {
       throw new HttpsError('failed-precondition', 'Transaction and journal disagree.');
+    }
+
+    // PERIOD_CORRECTION_V1: resolve the authoritative budget period and rule before writes.
+    // This also serializes corrections with period closure and concurrent spending.
+    let linkedPeriod = null;
+    let linkedPeriodRef = null;
+    if (original.budgetPeriodId) {
+      if (original.eventType !== 'expense' ||
+          typeof original.budgetPeriodId !== 'string' ||
+          !/^[A-Za-z0-9_-]{1,100}_\d{4}-\d{2}-\d{2}$/.test(original.budgetPeriodId)) {
+        throw new HttpsError('failed-precondition', 'Invalid linked budget period.');
+      }
+      const budgetId = original.sourceKey?.startsWith('budget:')
+        ? original.sourceKey.slice('budget:'.length) : null;
+      if (!budgetId || !original.budgetPeriodId.startsWith(budgetId + '_')) {
+        throw new HttpsError('failed-precondition', 'Linked budget source is inconsistent.');
+      }
+      linkedPeriodRef = base.collection('budgetPeriods').doc(original.budgetPeriodId);
+      const ruleRef = base.collection('budgetRules').doc(budgetId);
+      const [periodSnap, ruleSnap] = await Promise.all([tx.get(linkedPeriodRef), tx.get(ruleRef)]);
+      if (!periodSnap.exists || !ruleSnap.exists) {
+        throw new HttpsError('failed-precondition', 'Linked budget or period is missing.');
+      }
+      linkedPeriod = periodSnap.data();
+      if (linkedPeriod.status !== 'open' || linkedPeriod.budgetId !== budgetId ||
+          ruleSnap.data().openPeriodId !== original.budgetPeriodId ||
+          linkedPeriod.periodId !== original.budgetPeriodId ||
+          !Number.isSafeInteger(linkedPeriod.spentCents) || linkedPeriod.spentCents < original.amountCents ||
+          !Number.isSafeInteger(linkedPeriod.limitCents) || linkedPeriod.limitCents <= 0 ||
+          linkedPeriod.varianceCents !== linkedPeriod.limitCents - linkedPeriod.spentCents ||
+          original.effectiveDate < linkedPeriod.startDate ||
+          original.effectiveDate >= linkedPeriod.endExclusiveDate) {
+        throw new HttpsError('failed-precondition', 'Linked budget period is closed or inconsistent.');
+      }
+      if (kind === 'correct') {
+        if ((cmd.sourceKey ?? original.sourceKey) !== original.sourceKey ||
+            cmd.effectiveDate < linkedPeriod.startDate ||
+            cmd.effectiveDate >= linkedPeriod.endExclusiveDate ||
+            (Object.hasOwn(cmd, 'categoryId') && cmd.categoryId !== original.categoryId)) {
+          throw new HttpsError('failed-precondition',
+            'Linked expense corrections must stay in the same budget, period and category.');
+        }
+      }
     }
 
     let reversal, reversedState, replacement, finalState;
@@ -155,22 +194,39 @@ async function perform(request, kind) {
     } catch (error) { badInput(error); }
 
     const updated = ledger.ledgerSummary(finalState);
+    const revisedPeriodSpent = linkedPeriod
+      ? linkedPeriod.spentCents - original.amountCents + (replacement ? cmd.amountCents : 0)
+      : null;
+    if (linkedPeriod && (!Number.isSafeInteger(revisedPeriodSpent) || revisedPeriodSpent < 0 ||
+        !Number.isSafeInteger(linkedPeriod.limitCents - revisedPeriodSpent))) {
+      throw new HttpsError('failed-precondition', 'Corrected period amount is out of range.');
+    }
     const result = { reversalEventId: reversalId,
       ...(replacement ? { replacementEventId: replacementId } : {}), ...updated };
     tx.create(reversalRef, { ...reversal, schemaVersion: 1,
-      reversesEventId: cmd.transactionId, createdAt: FieldValue.serverTimestamp() });
+      reversesEventId: cmd.transactionId,
+      ...(linkedPeriod ? { budgetPeriodId: original.budgetPeriodId } : {}),
+      createdAt: FieldValue.serverTimestamp() });
     if (replacement) {
       const sourceKey = original.eventType === 'expense' ? (cmd.sourceKey ?? original.sourceKey) : undefined;
       const description = cmd.description ?? original.description ?? '';
       const categoryId = Object.hasOwn(cmd, 'categoryId') ? cmd.categoryId : original.categoryId ?? null;
       tx.create(replacementEventRef, { ...replacement, schemaVersion: 1,
         correctsEventId: cmd.transactionId, description, categoryId,
+        ...(linkedPeriod ? { budgetPeriodId: original.budgetPeriodId } : {}),
         createdAt: FieldValue.serverTimestamp() });
       tx.create(replacementTxnRef, { eventId: replacementId, requestId: cmd.requestId,
         eventType: original.eventType, amountCents: cmd.amountCents, effectiveDate: cmd.effectiveDate,
         ...(sourceKey ? { sourceKey } : {}), description, categoryId,
-        correctsTransactionId: cmd.transactionId, status: 'active', schemaVersion: 1,
+        correctsTransactionId: cmd.transactionId,
+        ...(linkedPeriod ? { budgetPeriodId: original.budgetPeriodId } : {}),
+        status: 'active', schemaVersion: 1,
         createdAt: FieldValue.serverTimestamp() });
+    }
+    if (linkedPeriod) {
+      tx.update(linkedPeriodRef, { spentCents: revisedPeriodSpent,
+        varianceCents: linkedPeriod.limitCents - revisedPeriodSpent,
+        updatedAt: FieldValue.serverTimestamp() });
     }
     tx.update(originalTxnRef, { status: 'reversed', reversedByEventId: reversalId,
       ...(replacement ? { replacedByTransactionId: replacementId } : {}),
