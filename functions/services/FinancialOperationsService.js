@@ -37,13 +37,28 @@ function parseCommand(request, kind) {
   const expected = ['requestId', 'amountCents', 'effectiveDate'];
   if (['expense', 'release', 'transfer'].includes(kind)) expected.push('sourceKey');
   if (['allocate', 'transfer'].includes(kind)) expected.push('destinationKey');
+  // TRANSACTION_METADATA_V1: optional display metadata for income and expenses.
+  if (['income', 'expense'].includes(kind)) expected.push('description', 'categoryId');
   if (Object.keys(data).some((key) => !expected.includes(key))) {
     throw new HttpsError('invalid-argument', 'Unrecognized command fields.');
+  }
+  if (['income', 'expense'].includes(kind)) {
+    if (Object.hasOwn(data, 'description') &&
+        (typeof data.description !== 'string' || data.description.trim().length === 0 ||
+         data.description.trim().length > 200)) {
+      throw new HttpsError('invalid-argument', 'description must be 1–200 nonblank characters.');
+    }
+    if (Object.hasOwn(data, 'categoryId') && data.categoryId !== null &&
+        (typeof data.categoryId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(data.categoryId))) {
+      throw new HttpsError('invalid-argument', 'categoryId must be null or a valid category ID.');
+    }
   }
   return {
     requestId, amountCents, effectiveDate,
     ...(expected.includes('sourceKey') ? { sourceKey: data.sourceKey } : {}),
     ...(expected.includes('destinationKey') ? { destinationKey: data.destinationKey } : {}),
+    ...(Object.hasOwn(data, 'description') ? { description: data.description.trim() } : {}),
+    ...(Object.hasOwn(data, 'categoryId') ? { categoryId: data.categoryId } : {}),
   };
 }
 
@@ -125,6 +140,8 @@ async function performOperation(request, kind) {
     kind, amountCents, effectiveDate,
     ...(Object.hasOwn(command, 'sourceKey') ? { sourceKey: command.sourceKey } : {}),
     ...(Object.hasOwn(command, 'destinationKey') ? { destinationKey: command.destinationKey } : {}),
+    ...(Object.hasOwn(command, 'description') ? { description: command.description } : {}),
+    ...(Object.hasOwn(command, 'categoryId') ? { categoryId: command.categoryId } : {}),
   });
 
   const base = getFirestore().collection('users').doc(uid);
@@ -168,11 +185,18 @@ async function performOperation(request, kind) {
 
     const summary = ledger.ledgerSummary(state);
     const result = { eventId, ...summary };
-    tx.create(journalRef, { ...event, schemaVersion: 1, createdAt: FieldValue.serverTimestamp() });
+    tx.create(journalRef, {
+      ...event, schemaVersion: 1,
+      ...(['income', 'expense'].includes(kind) ? {
+        description: command.description ?? '', categoryId: command.categoryId ?? null,
+      } : {}),
+      createdAt: FieldValue.serverTimestamp(),
+    });
     if (transactionRef) {
       tx.create(transactionRef, {
         eventId, requestId, eventType: kind, amountCents, effectiveDate,
         ...(kind === 'expense' ? { sourceKey: command.sourceKey } : {}),
+        description: command.description ?? '', categoryId: command.categoryId ?? null,
         schemaVersion: 1, createdAt: FieldValue.serverTimestamp(),
       });
     }
