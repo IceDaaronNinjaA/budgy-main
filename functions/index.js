@@ -10,5 +10,6 @@ exports.backendHealthCheck = onCall(options, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'You must be signed in.');
   return { status: 'ok', service: 'budgy-financial-backend', authenticated: true };
 });
-exports.initializeAccount = onCall(options, operations.initializeAccount);
-exports.recordIncome = onCall(options, operations.recordIncome);
+for (const [name, handler] of Object.entries(operations)) {
+  exports[name] = onCall(options, handler);
+}
