@@ -33,6 +33,12 @@ function parseRequest(request, kind) {
   if (typeof data.requestId !== 'string' || !ID.test(data.requestId)) {
     throw new HttpsError('invalid-argument', 'requestId must be 1–90 letters, digits, _ or -.');
   }
+  // PHASE16_BILL_PAYMENT_CORRECTION_GUARD: bill payments are confirmed
+  // occurrences, not independent expenses. They must not be corrected through
+  // generic transaction APIs (which cannot update the occurrence state).
+  if (typeof data.transactionId === 'string' && data.transactionId.startsWith('bill_pay_')) {
+    throw new HttpsError('failed-precondition', 'Confirmed bill payments cannot be changed using generic transaction correction.');
+  }
   if (typeof data.transactionId !== 'string' || !/^(income|expense|corrected)_[A-Za-z0-9_-]{1,110}$/.test(data.transactionId)) {
     throw new HttpsError('invalid-argument', 'transactionId must be an existing income or expense event ID.');
   }
@@ -131,6 +137,20 @@ async function perform(request, kind) {
     }
     if (original.status === 'reversed' || original.reversedByEventId) {
       throw new HttpsError('failed-precondition', 'Transaction was already reversed or corrected.');
+    }
+    // PHASE16_BILL_SOURCE_CHECK: also forbid relabeling a corrected ordinary
+    // expense as a managed bill expense. This protects the paid/unpaid state.
+    const billSourceKeys = [...new Set([original.sourceKey, cmd.sourceKey].filter(
+      k => typeof k === 'string' && k.startsWith('bill:')))];
+    if (original.billOccurrenceId || oldEvent.billOccurrenceId) {
+      throw new HttpsError('failed-precondition', 'Bill-linked transactions require a dedicated correction workflow.');
+    }
+    if (billSourceKeys.length) {
+      const bills = await Promise.all(billSourceKeys.map(k =>
+        tx.get(base.collection('billRules').doc(k.slice(5)))));
+      if (bills.some(s => s.exists)) {
+        throw new HttpsError('failed-precondition', 'Managed bill reserves cannot be modified by generic corrections.');
+      }
     }
     if (original.amountCents !== oldEvent.amountCents || !Array.isArray(oldEvent.postings)) {
       throw new HttpsError('failed-precondition', 'Transaction and journal disagree.');

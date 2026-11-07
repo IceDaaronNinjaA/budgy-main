@@ -12,6 +12,8 @@ const periods = require('./BudgetPeriodClosureService');
 const bills = require('./RecurringBillService');
 const funding = require('./AutomaticFundingService');
 const datesPromise = import(pathToFileURL(path.join(__dirname, '../shared/BudgetCalculations.js')).href);
+const { dateInZone } = require('./FinancialAutomationSettingsService');
+// PHASE16_LOCAL_DATE
 
 function stableId(action, kind, id, period) {
   const digest = createHash('sha256').update(JSON.stringify([action, kind, id, period])).digest('hex').slice(0, 36);
@@ -35,7 +37,9 @@ async function reconcileFinancialSchedule(request) {
   const uid = checkInput(request);
   const db = getFirestore();
   const base = db.collection('users').doc(uid);
-  const asOfDate = new Date().toISOString().slice(0, 10); // UTC until user time-zone preferences are implemented.
+  const settingsSnap = await base.collection('settings').doc('financialAutomation').get();
+  const timeZone = settingsSnap.exists ? settingsSnap.data().timeZone : 'UTC';
+  const asOfDate = dateInZone(new Date(), timeZone);
   const calculations = await datesPromise;
   const [summarySnap, budgetSnap, billSnap] = await Promise.all([
     base.collection('summaries').doc('current').get(),
@@ -124,7 +128,7 @@ async function reconcileFinancialSchedule(request) {
   } catch(e) {
     results.push({kind:'funding',action:'error',error:statusFromError(e)});
   }
-  return {asOfDate, dateBasis:'UTC', lifecycle:results, funding:fundingResult,
+  return {asOfDate, dateBasis:timeZone, lifecycle:results, funding:fundingResult,
     partial:results.some(r=>r.action==='error')};
 }
 module.exports = {reconcileFinancialSchedule};

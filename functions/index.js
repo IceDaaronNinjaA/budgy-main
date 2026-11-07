@@ -1,7 +1,11 @@
 'use strict';
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+// PHASE16_AUTOMATION_SETTINGS
 const reconciliation = require('./services/FinancialReconciliationService');
 const { initializeApp } = require('firebase-admin/app');
+const automationSettings = require('./services/FinancialAutomationSettingsService');
+const incomeTrigger = require('./services/FinancialIncomeTriggerService');
 const operations = require('./services/FinancialOperationsService');
 const savings = require('./services/SavingsGoalService');
 const bills = require('./services/RecurringBillService');
@@ -12,7 +16,14 @@ const budgets = require('./services/BudgetManagementService');
 const periodClose = require('./services/BudgetPeriodClosureService');
 
 initializeApp();
+// Opted-in users only. Income journal entries trigger reconciliation, never
+// bill payments or reserve transfers.
+exports.incomeFundingTrigger = onDocumentCreated(
+  { document: 'users/{uid}/journal/{eventId}', region: 'us-central1', retry: false },
+  incomeTrigger.onIncomeJournalCreated
+);
 const options = { region: 'us-central1' };
+exports.setFinancialAutomationSettings = onCall(options, automationSettings.setFinancialAutomationSettings);
 exports.reconcileFinancialSchedule = onCall(options, reconciliation.reconcileFinancialSchedule);
 
 exports.backendHealthCheck = onCall(options, async (request) => {
