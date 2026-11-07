@@ -4,6 +4,7 @@ const { initializeApp } = require('firebase-admin/app');
 const operations = require('./services/FinancialOperationsService');
 const categories = require('./services/CategoryManagementService');
 const corrections = require('./services/TransactionCorrectionService');
+const budgets = require('./services/BudgetManagementService');
 
 initializeApp();
 const options = { region: 'us-central1' };
@@ -21,5 +22,9 @@ for (const [name, handler] of Object.entries(categories)) {
 }
 
 for (const [name, handler] of Object.entries(corrections)) {
+  exports[name] = onCall(options, handler);
+}
+
+for (const [name, handler] of Object.entries(budgets)) {
   exports[name] = onCall(options, handler);
 }
