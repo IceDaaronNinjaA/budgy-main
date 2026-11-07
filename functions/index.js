@@ -3,6 +3,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const operations = require('./services/FinancialOperationsService');
 const savings = require('./services/SavingsGoalService');
+const bills = require('./services/RecurringBillService');
 const categories = require('./services/CategoryManagementService');
 const corrections = require('./services/TransactionCorrectionService');
 const budgets = require('./services/BudgetManagementService');
@@ -35,5 +36,8 @@ for (const [name, handler] of Object.entries(periodClose)) {
 }
 
 for (const [name, handler] of Object.entries(savings)) {
+  exports[name] = onCall(options, handler);
+}
+for (const [name, handler] of Object.entries(bills)) {
   exports[name] = onCall(options, handler);
 }

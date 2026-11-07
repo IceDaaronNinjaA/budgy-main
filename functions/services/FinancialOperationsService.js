@@ -164,14 +164,17 @@ async function performOperation(request, kind) {
     ? base.collection('budgetPeriods').doc(command.budgetPeriodId) : null;
   const budgetRuleRef = kind === 'expense' && command.sourceKey?.startsWith('budget:')
     ? base.collection('budgetRules').doc(command.sourceKey.slice(7)) : null;
+  const billRuleRef = kind === 'expense' && command.sourceKey?.startsWith('bill:')
+    ? base.collection('billRules').doc(command.sourceKey.slice(5)) : null;
   const transactionRef = ['income', 'expense'].includes(kind)
     ? base.collection('transactions').doc(eventId) : null;
 
   return getFirestore().runTransaction(async (tx) => {
-    const [receiptSnap, summarySnap, periodSnap, ruleSnap] = await Promise.all([
+    const [receiptSnap, summarySnap, periodSnap, ruleSnap, billRuleSnap] = await Promise.all([
       tx.get(operationRef), tx.get(summaryRef),
       periodRef ? tx.get(periodRef) : Promise.resolve(null),
       budgetRuleRef ? tx.get(budgetRuleRef) : Promise.resolve(null),
+      billRuleRef ? tx.get(billRuleRef) : Promise.resolve(null),
     ]);
     if (receiptSnap.exists) {
       const prior = receiptSnap.data();
@@ -193,6 +196,9 @@ async function performOperation(request, kind) {
       throw new HttpsError('failed-precondition', 'Initialize account before financial operations.');
     }
 
+    if (kind === 'expense' && billRuleSnap?.exists) {
+      throw new HttpsError('failed-precondition', 'Managed bill payments must use confirmBillPayment.');
+    }
     let nextPeriod = null;
     if (kind === 'expense' && ruleSnap?.exists && !periodRef) {
       throw new HttpsError('failed-precondition', 'Managed budget spending requires budgetPeriodId.');
