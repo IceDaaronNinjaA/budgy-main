@@ -3,6 +3,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const operations = require('./services/FinancialOperationsService');
 const categories = require('./services/CategoryManagementService');
+const corrections = require('./services/TransactionCorrectionService');
 
 initializeApp();
 const options = { region: 'us-central1' };
@@ -16,5 +17,9 @@ for (const [name, handler] of Object.entries(operations)) {
 }
 
 for (const [name, handler] of Object.entries(categories)) {
+  exports[name] = onCall(options, handler);
+}
+
+for (const [name, handler] of Object.entries(corrections)) {
   exports[name] = onCall(options, handler);
 }

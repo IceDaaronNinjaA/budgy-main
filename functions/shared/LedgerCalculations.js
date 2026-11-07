@@ -7,6 +7,7 @@ export const UNALLOCATED = 'unallocated';
 const DESTINATION_TYPES = new Set(['budget', 'bill', 'goal']);
 const VALID_EVENT_TYPES = new Set([
   'opening_balance', 'income', 'expense', 'allocate', 'release', 'transfer',
+  'reversal',
 ]);
 
 export function reserveAccount(type, id) {
