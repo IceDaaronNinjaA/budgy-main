@@ -136,7 +136,7 @@ export default function GoalsScreen() {
 
           <View style={styles.artworkContainer}>
             <Image
-              source={require('../../monsters/slime.gif')}
+              source={require('../../assets/monsters/slime.gif')}
               style={styles.artwork}
               resizeMode="contain"
             />
