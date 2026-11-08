@@ -1,68 +1,112 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import styles from '@/styles/DashboardPageStyle';
 
-const transactions = [
-  { icon: '🛒', name: 'Grocery Market', category: 'Food', amount: '-$48.20' },
-  { icon: '🚌', name: 'City Transit', category: 'Transport', amount: '-$32.50' },
-  { icon: '💰', name: 'Monthly paycheck', category: 'Income', amount: '+$2,840.00' },
-];
+const today = new Date();
+const currentMonth = {
+  month: new Intl.DateTimeFormat('en-US', { month: 'long' }).format(today),
+  year: today.getFullYear(),
+};
 
 export default function HomeScreen() {
   return (
     <ThemedView style={styles.screen}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <ThemedText type="subtitle" style={styles.title}>Good morning, Lucas</ThemedText>
-          <ThemedText themeColor="textSecondary">Here is your money snapshot.</ThemedText>
+          <View style={styles.headerBlock}>
+            <ThemedText type="subtitle" style={styles.mutedText}>
+              {currentMonth.month} {currentMonth.year}
+            </ThemedText>
+            <ThemedText type="subtitle" style={styles.title}>Dashboard</ThemedText>
+          </View>
 
           <ThemedView style={styles.balanceCard}>
-            <ThemedText type="small" style={styles.cardLabel}>TOTAL BALANCE</ThemedText>
-            <ThemedText style={styles.balance}>$4,268.42</ThemedText>
-            <ThemedText style={styles.positive}>+$320.15 this month</ThemedText>
-            <View style={styles.progressTrack}>
-              <View style={styles.progressFill} />
+            <View style={styles.cardHeader}>
+              <View>
+                <ThemedText type="small" style={styles.cardLabel}>Available balance</ThemedText>
+                <ThemedText style={styles.balance}>$4,268.42</ThemedText>
+                {/* <ThemedText style={styles.positive}>+$320.15 this month</ThemedText> */}
+              </View>
+              <View style={styles.artwork}>
+                <View style={styles.monsterCircle}>
+                  <Image
+                    source={require('../../assets/monsters/Leaf.gif')}
+                    style={styles.petArtwork}
+                    contentFit="contain"
+                  />
+                </View>
+              </View>
             </View>
             <View style={styles.cardFooter}>
               <ThemedText type="small" style={styles.cardLabel}>Monthly spending</ThemedText>
-              <ThemedText type="smallBold" style={styles.cardLabel}>$1,240 / $2,000</ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="See monthly spending details"
+                style={({ pressed }) => [styles.cardButton, pressed && styles.cardButtonPressed]}
+              >
+                <ThemedText type="smallBold" style={styles.cardButtonText}>
+                  See details
+                </ThemedText>
+                <Image
+                  source={require('@/assets/icons/buttonArrow.svg')}
+                  style={styles.cardButtonIcon}
+                  contentFit="contain"
+                />
+              </Pressable>
             </View>
           </ThemedView>
 
-          <View style={styles.statsRow}>
-            <ThemedView type="backgroundElement" style={styles.statCard}>
-              <ThemedText type="small" themeColor="textSecondary">INCOME</ThemedText>
-              <ThemedText style={styles.statValue}>$2,840</ThemedText>
-              <ThemedText type="small" style={styles.income}>This month</ThemedText>
-            </ThemedView>
-            <ThemedView type="backgroundElement" style={styles.statCard}>
-              <ThemedText type="small" themeColor="textSecondary">EXPENSES</ThemedText>
-              <ThemedText style={styles.statValue}>$1,240</ThemedText>
-              <ThemedText type="small" style={styles.expense}>This month</ThemedText>
-            </ThemedView>
-          </View>
-
-          <View style={styles.sectionHeader}>
-            <ThemedText type="subtitle" style={styles.sectionTitle}>Recent activity</ThemedText>
-            <ThemedText type="linkPrimary">See all</ThemedText>
-          </View>
-
-          <ThemedView type="backgroundElement" style={styles.transactionCard}>
-            {transactions.map((transaction, index) => (
-              <View key={transaction.name} style={[styles.transactionRow, index > 0 && styles.divider]}>
-                <View style={styles.transactionIcon}><ThemedText>{transaction.icon}</ThemedText></View>
-                <View style={styles.transactionInfo}>
-                  <ThemedText type="smallBold">{transaction.name}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">{transaction.category}</ThemedText>
-                </View>
-                <ThemedText type="smallBold" style={transaction.amount.startsWith('+') ? styles.income : undefined}>
-                  {transaction.amount}
-                </ThemedText>
-              </View>
-            ))}
+          <ThemedView type="backgroundElement" style={styles.statCard}>
+            <View style={styles.statHeader}>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.statLabel}>Budget for {currentMonth.month}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">59% left</ThemedText>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={styles.progressFill} />
+            </View>
+            <View style={styles.statHeader}>
+              <ThemedText style={styles.statValue}>$2,840.00</ThemedText>
+              <ThemedText type="small" style={styles.income}>of $4,200.00</ThemedText>
+            </View>
           </ThemedView>
+         
+          <View style={styles.statsRow}>
+            <ThemedView type="backgroundElement" style={styles.statCardIncome}>
+              <Image
+                source={require('@/assets/icons/incomeArrow.svg')}
+                style={styles.statCardIcon}
+                contentFit="contain"
+              />
+              <ThemedText style={styles.statValue}>$2,840.00</ThemedText>
+              <ThemedText type="small" style={styles.incomeTextCard}>Income</ThemedText>
+            </ThemedView>
+            <ThemedView type="backgroundElement" style={styles.statCardExpense}>
+              <Image
+                source={require('@/assets/icons/expenseArrow.svg')}
+                style={styles.statCardIcon}
+                contentFit="contain"
+              />
+              <ThemedText style={styles.statValue}>$1,240.00</ThemedText>
+              <ThemedText type="small" style={styles.expenseTextCard}>Expenses</ThemedText>
+            </ThemedView>
+          </View>
+
+          <ThemedView type="backgroundElement" style={styles.savingGoalCard}>
+            <View style={styles.statCard}>
+              <ThemedText type="small" style={styles.statLabel}>Create a saving Goal</ThemedText>
+              <ThemedText style={styles.mutedText}>Set money aside for something that matters to you.</ThemedText>
+            </View>
+            <Image
+              source={require('@/assets/icons/goalIcon.svg')}
+              style={styles.statCardIcon}
+              contentFit="contain"
+            />
+          </ThemedView>
+
 
           <ThemedView type="backgroundElement" style={styles.tipCard}>
             <ThemedText style={styles.tipIcon}>💡</ThemedText>
@@ -77,31 +121,3 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  safeArea: { flex: 1 },
-  content: { padding: 24, paddingBottom: 120, gap: 8 },
-  title: { marginTop: 4, marginBottom: 4, fontSize: 30 },
-  balanceCard: { marginTop: 24, padding: 24, borderRadius: 22, backgroundColor: '#4B5563', gap: 8 },
-  cardLabel: { color: '#E5E7EB' },
-  balance: { color: '#ffffff', fontSize: 38, lineHeight: 48, fontWeight: '700', marginVertical: 4, flexShrink: 0 },
-  positive: { color: '#F3F4F6', fontSize: 14, fontWeight: '700' },
-  progressTrack: { height: 8, borderRadius: 4, backgroundColor: '#6B7280', overflow: 'hidden', marginTop: 16 },
-  progressFill: { width: '62%', height: '100%', borderRadius: 4, backgroundColor: '#D1D5DB' },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
-  statsRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  statCard: { flex: 1, padding: 16, borderRadius: 18, gap: 8 },
-  statValue: { fontSize: 23, fontWeight: '700' },
-  income: { color: '#374151' },
-  expense: { color: '#6B7280' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 8 },
-  sectionTitle: { fontSize: 22 },
-  transactionCard: { borderRadius: 18, paddingHorizontal: 16 },
-  transactionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
-  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#c9cbd0' },
-  transactionIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' },
-  transactionInfo: { flex: 1, gap: 2 },
-  tipCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 18, marginTop: 12 },
-  tipIcon: { fontSize: 24 },
-  tipText: { flex: 1, gap: 2 },
-});
