@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
 
 // Reusable row for each setting
 function SettingRow({ icon, title, subtitle, value }) {
@@ -35,8 +34,6 @@ function SettingRow({ icon, title, subtitle, value }) {
 }
 
 export default function SettingsScreen() {
-  const theme = useTheme();
-
   return (
     <ThemedView style={styles.screen}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
