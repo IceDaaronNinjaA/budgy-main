@@ -1,14 +1,22 @@
 
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
-// Reusable row for each setting
-function SettingRow({ icon, title, subtitle, value }) {
+// Reusable clickable setting row
+function SettingRow({ icon, title, subtitle, value, onPress }) {
   return (
-    <View style={styles.settingRow}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.settingRow,
+        pressed && styles.pressed,
+      ]}
+      onPress={onPress}
+      disabled={!onPress}
+    >
       <View style={styles.iconBox}>
         <ThemedText style={styles.icon}>{icon}</ThemedText>
       </View>
@@ -26,14 +34,47 @@ function SettingRow({ icon, title, subtitle, value }) {
         </ThemedText>
       ) : null}
 
-      <ThemedText themeColor="textSecondary" style={styles.arrow}>
-        ›
-      </ThemedText>
-    </View>
+      {onPress ? (
+        <ThemedText themeColor="textSecondary" style={styles.arrow}>
+          ›
+        </ThemedText>
+      ) : null}
+    </Pressable>
   );
 }
 
 export default function SettingsScreen() {
+  const router = useRouter();
+
+  // Show the device's current time zone
+  const handleTimeZone = () => {
+    const timeZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    Alert.alert('Time Zone', `Your current time zone is ${timeZone}.`);
+  };
+
+  // Currency is USD for the current version
+  const handleCurrency = () => {
+    Alert.alert(
+      'Currency',
+      'Budgy currently uses USD ($) as its currency.'
+    );
+  };
+
+  // Navigate to the Budgets screen
+  const handleBudgets = () => {
+    router.push('/budgets');
+  };
+
+  // Recurring rules are not implemented yet
+  const handleRecurringRules = () => {
+    Alert.alert(
+      'Recurring Rules',
+      'Recurring rule management is not available yet.'
+    );
+  };
+
   return (
     <ThemedView style={styles.screen}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -41,7 +82,6 @@ export default function SettingsScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* Page heading */}
           <ThemedText type="subtitle" style={styles.heading}>
             Profile & Settings
           </ThemedText>
@@ -50,80 +90,80 @@ export default function SettingsScreen() {
             Manage your account and preferences.
           </ThemedText>
 
-          {/* Profile card */}
+          {/* Profile */}
           <ThemedView type="backgroundElement" style={styles.profileCard}>
             <View style={styles.avatar}>
-              <ThemedText style={styles.avatarText}>LJ</ThemedText>
+              <ThemedText style={styles.avatarText}>B</ThemedText>
             </View>
 
             <View style={styles.rowContent}>
-              <ThemedText type="smallBold">
-                Lucas Johnson
-              </ThemedText>
+              <ThemedText type="smallBold">My Profile</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                lucas@example.com
+                Manage your Budgy preferences
               </ThemedText>
               <ThemedText type="small" style={styles.memberLabel}>
                 Budgy member
               </ThemedText>
             </View>
-
-            <ThemedText themeColor="textSecondary" style={styles.arrow}>
-              ›
-            </ThemedText>
           </ThemedView>
 
-          {/* Appearance */}
-          <ThemedText type="smallBold" themeColor="textSecondary"
-            style={styles.sectionTitle}>
+          {/* Preferences */}
+          <ThemedText
+            type="smallBold"
+            themeColor="textSecondary"
+            style={styles.sectionTitle}
+          >
             PREFERENCES
           </ThemedText>
 
           <ThemedView type="backgroundElement" style={styles.card}>
             <SettingRow
-              icon="🎨"
-              title="Appearance"
-              subtitle="Customize how Budgy looks"
-              value="System"
-            />
-          </ThemedView>
-
-          {/* Security and privacy */}
-          <ThemedText type="smallBold" themeColor="textSecondary"
-            style={styles.sectionTitle}>
-            SECURITY & PRIVACY
-          </ThemedText>
-
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <SettingRow
-              icon="🔒"
-              title="Password & Security"
-              subtitle="Manage account security"
+              icon="🌎"
+              title="Time Zone"
+              subtitle="View your current time zone"
+              value="Device"
+              onPress={handleTimeZone}
             />
 
             <View style={styles.divider} />
 
             <SettingRow
-              icon="🛡️"
-              title="Privacy"
-              subtitle="Manage privacy preferences"
+              icon="💵"
+              title="Currency"
+              subtitle="Choose your preferred currency"
+              value="USD"
+              onPress={handleCurrency}
             />
           </ThemedView>
 
-          {/* Account */}
-          <ThemedText type="smallBold" themeColor="textSecondary"
-            style={styles.sectionTitle}>
-            ACCOUNT
+          {/* Budget Management */}
+          <ThemedText
+            type="smallBold"
+            themeColor="textSecondary"
+            style={styles.sectionTitle}
+          >
+            BUDGET MANAGEMENT
           </ThemedText>
 
           <ThemedView type="backgroundElement" style={styles.card}>
             <SettingRow
-              icon="↪"
-              title="Log Out"
-              subtitle="Sign out of your account"
+              icon="💰"
+              title="Budgets"
+              subtitle="Manage your budgets"
+              onPress={handleBudgets}
+            />
+
+            <View style={styles.divider} />
+
+            <SettingRow
+              icon="🔄"
+              title="Recurring Rules"
+              subtitle="Manage recurring transactions"
+              onPress={handleRecurringRules}
             />
           </ThemedView>
 
+          {/* Footer */}
           <ThemedText
             type="small"
             themeColor="textSecondary"
@@ -165,46 +205,49 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: '#4B5563',
-    justifyContent: 'center',
+    backgroundColor: '#DCEFE5',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarText: {
-    color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
+    color: '#26734D',
   },
   rowContent: {
     flex: 1,
     gap: 4,
   },
   memberLabel: {
-    color: '#16A34A',
+    color: '#26734D',
     marginTop: 3,
   },
   sectionTitle: {
     fontSize: 12,
     letterSpacing: 1,
-    marginTop: 12,
     marginBottom: 10,
+    marginTop: 8,
   },
   card: {
     borderRadius: 18,
     paddingHorizontal: 14,
-    marginBottom: 12,
+    marginBottom: 20,
   },
   settingRow: {
-    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 76,
     gap: 12,
     paddingVertical: 12,
+  },
+  pressed: {
+    opacity: 0.6,
   },
   iconBox: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(156, 163, 175, 0.18)',
+    backgroundColor: 'rgba(128,128,128,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -213,11 +256,10 @@ const styles = StyleSheet.create({
   },
   arrow: {
     fontSize: 25,
-    marginLeft: 2,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#9CA3AF',
+    backgroundColor: 'rgba(128,128,128,0.25)',
   },
   footer: {
     textAlign: 'center',
