@@ -1,9 +1,18 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { Tabs } from 'expo-router';
+import NavBar from '@/components/ui/navBar';
+
 export default function AppTabs() {
-    const scheme = useColorScheme();
-    const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-    return (_jsxs(NativeTabs, { backgroundColor: colors.background, indicatorColor: colors.backgroundElement, labelStyle: { selected: { color: colors.text } }, children: [_jsxs(NativeTabs.Trigger, { name: "index", children: [_jsx(NativeTabs.Trigger.Label, { children: "Dashboard" }), _jsx(NativeTabs.Trigger.Icon, { sf: "house.fill", md: "home" })] }), _jsxs(NativeTabs.Trigger, { name: "transactions", children: [_jsx(NativeTabs.Trigger.Label, { children: "Transactions" }), _jsx(NativeTabs.Trigger.Icon, { sf: "list.bullet", md: "receipt_long" })] }), _jsxs(NativeTabs.Trigger, { name: "budgets", children: [_jsx(NativeTabs.Trigger.Label, { children: "Budgets" }), _jsx(NativeTabs.Trigger.Icon, { sf: "chart.bar.fill", md: "account_balance_wallet" })] }), _jsxs(NativeTabs.Trigger, { name: "goals", children: [_jsx(NativeTabs.Trigger.Label, { children: "Goals" }), _jsx(NativeTabs.Trigger.Icon, { sf: "target", md: "flag" })] }), _jsxs(NativeTabs.Trigger, { name: "settings", children: [_jsx(NativeTabs.Trigger.Label, { children: "Settings" }), _jsx(NativeTabs.Trigger.Icon, { sf: "gearshape.fill", md: "settings" })] })] }));
+  return (
+    <Tabs
+      tabBar={(props) => <NavBar {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
+      <Tabs.Screen name="index" options={{ title: 'Home' }} />
+      <Tabs.Screen name="transactions" options={{ title: 'Transactions' }} />
+      <Tabs.Screen name="goals" options={{ title: 'Goals' }} />
+      <Tabs.Screen name="settings" options={{ title: 'Profile' }} />
+      <Tabs.Screen name="budgets" options={{ href: null }} />
+      <Tabs.Screen name="explore" options={{ href: null }} />
+    </Tabs>
+  );
 }
