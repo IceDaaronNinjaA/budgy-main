@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useEffect, useState } from 'react';
 import {
-  Image,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,169 +14,194 @@ import {
 } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { auth } from '../../config/firebase';
+import { savingsProgress } from '../domain/SavingsCalculations';
+import {
+  createSavingsGoal,
+  getUserGoals,
+} from '../services/SavingsGoalService';
 
-const repeatOptions = ['Does Not Repeat', 'Daily', 'Weekly', 'Monthly', 'Yearly'];
+function todayString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function createRequestId(prefix) {
+  const randomPart = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}-${randomPart}`.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 110);
+}
+
+function dollarsToCents(value) {
+  const normalized = value.trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+    throw new Error('Enter a positive dollar amount with no more than two decimal places.');
+  }
+  const [dollars, cents = ''] = normalized.split('.');
+  const amountCents = Number(dollars) * 100 + Number(cents.padEnd(2, '0'));
+  if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+    throw new Error('Target amount must be greater than zero.');
+  }
+  return amountCents;
+}
+
+function formatMoney(cents) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function formatGoal(goal) {
+  try {
+    return savingsProgress({
+      targetCents: goal.targetCents,
+      savedCents: goal.savedCents ?? 0,
+      startDate: goal.startDate,
+      deadlineDate: goal.deadlineDate,
+      asOfDate: todayString(),
+    });
+  } catch {
+    return null;
+  }
+}
 
 export default function GoalsScreen() {
+  const [user, setUser] = useState(undefined);
   const [goals, setGoals] = useState([]);
+  const [isLoading, setLoading] = useState(true);
+  const [isSaving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   const [isCreateMenuVisible, setCreateMenuVisible] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [repeat, setRepeat] = useState('');
-  const [isRepeatMenuVisible, setRepeatMenuVisible] = useState(false);
+  const [targetAmount, setTargetAmount] = useState('');
+  const [startDate, setStartDate] = useState(todayString());
+  const [deadlineDate, setDeadlineDate] = useState('');
+  const [pendingGoalId, setPendingGoalId] = useState('');
   const [formError, setFormError] = useState('');
-  const [achievementMessageVisible, setAchievementMessageVisible] = useState(false);
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
-  const achievementMessageTimeout = useRef(null);
 
-  const openCreateMenu = () => {
-    setFormError('');
-    setCreateMenuVisible(true);
+  const loadGoals = async () => {
+    if (!auth.currentUser) {
+      setGoals([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      setGoals(await getUserGoals());
+      setError('');
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load your savings goals.');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => onAuthStateChanged(auth, (nextUser) => {
+    setUser(nextUser);
+    loadGoals();
+  }), []);
 
   const closeCreateMenu = () => {
     setCreateMenuVisible(false);
-    setRepeatMenuVisible(false);
     setFormError('');
+    setPendingGoalId('');
   };
 
-  const saveGoal = () => {
-    if (!name.trim() || !description.trim() || !repeat) {
-      setFormError('Please complete every field before saving your goal.');
+  const openCreateMenu = () => {
+    setFormError('');
+    setPendingGoalId((current) => current || createRequestId('goal'));
+    setCreateMenuVisible(true);
+  };
+
+  const saveGoal = async () => {
+    if (!name.trim() || !startDate || !deadlineDate) {
+      setFormError('Name, start date, and deadline are required.');
+      return;
+    }
+    if (deadlineDate < startDate) {
+      setFormError('Deadline must be on or after the start date.');
+      return;
+    }
+    let targetCents;
+    try {
+      targetCents = dollarsToCents(targetAmount);
+    } catch (validationError) {
+      setFormError(validationError.message);
       return;
     }
 
-    setGoals((currentGoals) => [
-      ...currentGoals,
-      {
+    setSaving(true);
+    setFormError('');
+    try {
+      const goalId = pendingGoalId || createRequestId('goal');
+      setPendingGoalId(goalId);
+      await createSavingsGoal({
+        requestId: createRequestId('goal-create'),
+        goalId,
         name: name.trim(),
-        description: description.trim(),
-        repeat,
-      },
-    ]);
-    setName('');
-    setDescription('');
-    setRepeat('');
-    closeCreateMenu();
+        ...(description.trim() ? { description: description.trim() } : {}),
+        targetCents,
+        startDate,
+        deadlineDate,
+      });
+      setName('');
+      setDescription('');
+      setTargetAmount('');
+      setStartDate(todayString());
+      setDeadlineDate('');
+      closeCreateMenu();
+      await loadGoals();
+    } catch (saveError) {
+      setFormError(saveError.message || 'Unable to save this goal.');
+    } finally {
+      setSaving(false);
+    }
   };
-
-  const getNextAchievementTime = (repeat, date = new Date()) => {
-    const nextDate = new Date(date);
-
-    if (repeat === 'Daily') {
-      nextDate.setDate(nextDate.getDate() + 1);
-    } else if (repeat === 'Weekly') {
-      nextDate.setDate(nextDate.getDate() + 7);
-    } else if (repeat === 'Monthly') {
-      nextDate.setMonth(nextDate.getMonth() + 1);
-    } else if (repeat === 'Yearly') {
-      nextDate.setFullYear(nextDate.getFullYear() + 1);
-    }
-
-    return nextDate.getTime();
-  };
-
-  const showAchievementMessage = () => {
-    setAchievementMessageVisible(true);
-    if (achievementMessageTimeout.current) {
-      clearTimeout(achievementMessageTimeout.current);
-    }
-    achievementMessageTimeout.current = setTimeout(() => {
-      setAchievementMessageVisible(false);
-    }, 3000);
-  };
-
-  const achieveGoal = (goalIndex) => {
-    const goal = goals[goalIndex];
-    if (!goal || (goal.achievedUntil && goal.achievedUntil > currentTime)) {
-      return;
-    }
-
-    if (goal.repeat === 'Does Not Repeat') {
-      setGoals((currentGoals) => currentGoals.filter((_, index) => index !== goalIndex));
-    } else {
-      setGoals((currentGoals) => currentGoals.map((currentGoal, index) => (
-        index === goalIndex
-          ? { ...currentGoal, achievedUntil: getNextAchievementTime(currentGoal.repeat) }
-          : currentGoal
-      )));
-    }
-
-    showAchievementMessage();
-  };
-
-  useEffect(() => {
-    const nextResetTime = goals
-      .map((goal) => goal.achievedUntil)
-      .filter((achievedUntil) => achievedUntil && achievedUntil > currentTime)
-      .sort((first, second) => first - second)[0];
-
-    if (!nextResetTime) {
-      return undefined;
-    }
-
-    const resetTimer = setTimeout(() => setCurrentTime(Date.now()), nextResetTime - currentTime);
-    return () => clearTimeout(resetTimer);
-  }, [goals, currentTime]);
-
-  useEffect(() => () => {
-    if (achievementMessageTimeout.current) {
-      clearTimeout(achievementMessageTimeout.current);
-    }
-  }, []);
 
   return (
     <ThemedView style={styles.screen}>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <ThemedText type="subtitle" style={styles.title}>Goals</ThemedText>
-
-          <Pressable accessibilityRole="button" style={styles.backButton}>
-            <ThemedText style={styles.backArrow}>{'<-'}</ThemedText>
-          </Pressable>
-
-          <View style={styles.artworkContainer}>
-            <Image
-              source={require('../../assets/monsters/slime.gif')}
-              style={styles.artwork}
-              resizeMode="contain"
-            />
-          </View>
+          <ThemedText type="subtitle" style={styles.title}>Savings Goals</ThemedText>
+          {!user && user !== undefined ? (
+            <ThemedText style={styles.notice}>Sign in to create and view savings goals.</ThemedText>
+          ) : null}
+          {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
 
           <ThemedView style={styles.goalsPanel}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Create a goal"
+              accessibilityLabel="Create a savings goal"
+              disabled={!user || isSaving}
               onPress={openCreateMenu}
-              style={styles.createButton}
+              style={[styles.createButton, (!user || isSaving) && styles.disabledButton]}
             >
-              <ThemedText style={styles.createButtonText}>Create Goal</ThemedText>
+              <ThemedText style={styles.createButtonText}>Create Savings Goal</ThemedText>
               <ThemedText style={styles.plus}>+</ThemedText>
             </Pressable>
 
+            {isLoading ? <ActivityIndicator color="#37474F" /> : null}
+            {!isLoading && user && goals.length === 0 ? (
+              <ThemedText style={styles.emptyText}>No savings goals yet.</ThemedText>
+            ) : null}
             <View style={styles.goalList}>
-              {goals.map((goal, index) => {
-                const isAchieved = goal.achievedUntil && goal.achievedUntil > currentTime;
-
+              {goals.map((goal) => {
+                const progress = formatGoal(goal);
                 return (
-                <View key={`${goal.name}-${index}`} style={[styles.goalCard, isAchieved && styles.achievedGoalCard]}>
-                  <View style={styles.goalCardHeader}>
-                    <ThemedText style={styles.goalType}>{goal.repeat}</ThemedText>
-                    <ThemedText style={styles.goalDescription}>{goal.description}</ThemedText>
-                  </View>
-                  <View style={styles.goalCardFooter}>
+                  <View key={goal.id} style={styles.goalCard}>
                     <ThemedText style={styles.goalName}>{goal.name}</ThemedText>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={isAchieved ? 'Goal already achieved' : 'Mark goal as achieved'}
-                      disabled={isAchieved}
-                      onPress={() => achieveGoal(index)}
-                      style={[styles.arrowCircle, isAchieved && styles.achievedCheckCircle]}
-                    >
-                      <ThemedText style={styles.cardArrow}>{'✓'}</ThemedText>
-                    </Pressable>
+                    {goal.description ? <ThemedText style={styles.description}>{goal.description}</ThemedText> : null}
+                    <ThemedText style={styles.goalValue}>
+                      {formatMoney(goal.savedCents ?? 0)} of {formatMoney(goal.targetCents)} saved
+                    </ThemedText>
+                    <ThemedText style={styles.goalMeta}>Deadline: {goal.deadlineDate}</ThemedText>
+                    {progress ? (
+                      <ThemedText style={styles.goalMeta}>
+                        {progress.completed ? 'Achieved' : `${formatMoney(progress.remainingCents)} remaining`}
+                        {!progress.completed && progress.dailyRequiredCents !== null
+                          ? ` · ${formatMoney(progress.dailyRequiredCents)}/day`
+                          : ''}
+                        {progress.onTrack ? ' · On track' : ' · Behind pace'}
+                      </ThemedText>
+                    ) : null}
                   </View>
-                </View>
                 );
               })}
             </View>
@@ -183,97 +209,28 @@ export default function GoalsScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {achievementMessageVisible && (
-        <View accessibilityLiveRegion="polite" style={styles.achievementMessage}>
-          <ThemedText style={styles.achievementMessageText}>Goal Achieved!</ThemedText>
-        </View>
-      )}
-
-      <Modal
-        animationType="slide"
-        transparent
-        visible={isCreateMenuVisible}
-        onRequestClose={closeCreateMenu}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalBackdrop}
-        >
+      <Modal animationType="slide" transparent visible={isCreateMenuVisible} onRequestClose={closeCreateMenu}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <ThemedText type="subtitle" style={styles.modalTitle}>Create Goal</ThemedText>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Close create goal menu"
-                onPress={closeCreateMenu}
-                style={styles.closeButton}
-              >
+              <ThemedText type="subtitle" style={styles.modalTitle}>Create Savings Goal</ThemedText>
+              <Pressable accessibilityRole="button" onPress={closeCreateMenu} style={styles.closeButton}>
                 <ThemedText style={styles.closeButtonText}>×</ThemedText>
               </Pressable>
             </View>
-
-            <ThemedText style={styles.inputLabel}>Name of Goal</ThemedText>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Enter a goal name"
-              placeholderTextColor="#9CA3AF"
-              style={styles.input}
-              returnKeyType="next"
-            />
-
-            <ThemedText style={styles.inputLabel}>Goal Description</ThemedText>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Describe what you want to accomplish"
-              placeholderTextColor="#9CA3AF"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              style={[styles.input, styles.descriptionInput]}
-            />
-
-            <ThemedText style={styles.inputLabel}>Repeat</ThemedText>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Choose repeat frequency"
-              onPress={() => setRepeatMenuVisible((visible) => !visible)}
-              style={styles.dropdownButton}
-            >
-              <ThemedText style={repeat ? styles.dropdownText : styles.dropdownPlaceholder}>
-                {repeat || 'Does Not Repeat'}
-              </ThemedText>
-              <ThemedText style={styles.dropdownArrow}>{isRepeatMenuVisible ? '▲' : '▼'}</ThemedText>
-            </Pressable>
-
-            {isRepeatMenuVisible && (
-              <View style={styles.dropdownMenu}>
-                {repeatOptions.map((option) => (
-                  <Pressable
-                    key={option}
-                    accessibilityRole="button"
-                    onPress={() => {
-                      setRepeat(option);
-                      setRepeatMenuVisible(false);
-                    }}
-                    style={styles.dropdownOption}
-                  >
-                    <ThemedText>{option}</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-
+            <ThemedText style={styles.inputLabel}>Name</ThemedText>
+            <TextInput value={name} onChangeText={setName} placeholder="Emergency fund" style={styles.input} />
+            <ThemedText style={styles.inputLabel}>Description (optional)</ThemedText>
+            <TextInput value={description} onChangeText={setDescription} placeholder="What are you saving for?" style={styles.input} />
+            <ThemedText style={styles.inputLabel}>Target amount (USD)</ThemedText>
+            <TextInput value={targetAmount} onChangeText={setTargetAmount} placeholder="900.00" keyboardType="decimal-pad" style={styles.input} />
+            <ThemedText style={styles.inputLabel}>Start date (YYYY-MM-DD)</ThemedText>
+            <TextInput value={startDate} onChangeText={setStartDate} placeholder="2026-11-09" style={styles.input} />
+            <ThemedText style={styles.inputLabel}>Deadline (YYYY-MM-DD)</ThemedText>
+            <TextInput value={deadlineDate} onChangeText={setDeadlineDate} placeholder="2026-12-31" style={styles.input} />
             {formError ? <ThemedText style={styles.formError}>{formError}</ThemedText> : null}
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Save goal"
-              onPress={saveGoal}
-              style={styles.saveButton}
-            >
-              <ThemedText style={styles.saveButtonText}>Save Goal</ThemedText>
+            <Pressable accessibilityRole="button" disabled={isSaving} onPress={saveGoal} style={styles.saveButton}>
+              {isSaving ? <ActivityIndicator color="#111827" /> : <ThemedText style={styles.saveButtonText}>Save Goal</ThemedText>}
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -283,83 +240,9 @@ export default function GoalsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  safeArea: { flex: 1 },
-  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 110 },
-  title: { marginBottom: 8, fontSize: 22 },
-  backButton: { alignSelf: 'flex-start', paddingVertical: 8, paddingRight: 16 },
-  backArrow: { color: '#4B5563', fontSize: 28, lineHeight: 28 },
-  artworkContainer: {
-    alignSelf: 'center', width: '68%', aspectRatio: 1, marginTop: 12, marginBottom: 28,
-    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E5E7EB',
-  },
-  artwork: { width: '100%', height: '100%' },
-  goalsPanel: {
-    marginHorizontal: -20, paddingHorizontal: 26, paddingTop: 18, paddingBottom: 24,
-    borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: '#FFFFFF',
-  },
-  createButton: {
-    minHeight: 42, marginBottom: 22, borderRadius: 24, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFC400',
-  },
-  createButtonText: { color: '#111827', fontSize: 15, fontWeight: '700' },
-  plus: { position: 'absolute', right: 42, color: '#111827', fontSize: 30, lineHeight: 30 },
-  goalList: { gap: 10 },
-  goalCard: {
-    minHeight: 112, padding: 16, borderRadius: 20, justifyContent: 'space-between',
-    backgroundColor: '#37474F',
-  },
-  achievedGoalCard: { backgroundColor: '#9CA3AF' },
-  goalCardHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  goalType: { color: '#F8FAFC', fontSize: 13 },
-  goalDescription: { color: '#F8FAFC', fontSize: 13 },
-  goalCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  goalName: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
-  arrowCircle: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#FFC42C',
-  },
-  achievedCheckCircle: { backgroundColor: '#D1D5DB' },
-  cardArrow: { color: '#111827', fontSize: 24, lineHeight: 28, fontWeight: '700' },
-  achievementMessage: {
-    position: 'absolute', left: 20, right: 20, bottom: 28, paddingVertical: 14,
-    borderRadius: 14, alignItems: 'center', backgroundColor: '#111827',
-  },
-  achievementMessageText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  modalBackdrop: {
-    flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17, 24, 39, 0.45)',
-  },
-  modalCard: {
-    padding: 24, paddingBottom: 32, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    backgroundColor: '#FFFFFF',
-  },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  modalTitle: { fontSize: 24 },
-  closeButton: { padding: 4 },
-  closeButtonText: { color: '#4B5563', fontSize: 30, lineHeight: 30 },
-  inputLabel: { marginBottom: 6, color: '#374151', fontSize: 14, fontWeight: '700' },
-  input: {
-    minHeight: 46, marginBottom: 16, paddingHorizontal: 14, borderWidth: 1,
-    borderColor: '#D1D5DB', borderRadius: 12, color: '#111827', backgroundColor: '#F9FAFB',
-  },
-  descriptionInput: { minHeight: 96, paddingTop: 12 },
-  dropdownButton: {
-    minHeight: 46, marginBottom: 8, paddingHorizontal: 14, borderWidth: 1,
-    borderColor: '#D1D5DB', borderRadius: 12, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', backgroundColor: '#F9FAFB',
-  },
-  dropdownText: { color: '#111827' },
-  dropdownPlaceholder: { color: '#6B7280' },
-  dropdownArrow: { color: '#4B5563', fontSize: 12 },
-  dropdownMenu: {
-    marginBottom: 16, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12,
-    overflow: 'hidden', backgroundColor: '#FFFFFF',
-  },
-  dropdownOption: { paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  formError: { marginBottom: 12, color: '#B91C1C', fontSize: 13 },
-  saveButton: {
-    minHeight: 48, marginTop: 8, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#FFC400',
-  },
-  saveButtonText: { color: '#111827', fontSize: 16, fontWeight: '700' },
+  screen: { flex: 1 }, safeArea: { flex: 1 }, content: { flexGrow: 1, padding: 20, paddingBottom: 110 },
+  title: { marginBottom: 18, fontSize: 24 }, notice: { marginBottom: 16, color: '#6B7280' }, error: { marginBottom: 12, color: '#B91C1C' },
+  goalsPanel: { padding: 20, borderRadius: 24, backgroundColor: '#FFFFFF' }, createButton: { minHeight: 48, marginBottom: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFC400' }, disabledButton: { opacity: 0.5 }, createButtonText: { color: '#111827', fontWeight: '700' }, plus: { position: 'absolute', right: 28, color: '#111827', fontSize: 28 },
+  emptyText: { paddingVertical: 18, color: '#6B7280', textAlign: 'center' }, goalList: { gap: 12 }, goalCard: { padding: 16, borderRadius: 18, backgroundColor: '#37474F' }, goalName: { color: '#FFFFFF', fontSize: 20, fontWeight: '700' }, description: { marginTop: 5, color: '#E5E7EB' }, goalValue: { marginTop: 14, color: '#FFFFFF', fontSize: 16 }, goalMeta: { marginTop: 6, color: '#D1D5DB' },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17, 24, 39, 0.45)' }, modalCard: { padding: 24, paddingBottom: 32, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: '#FFFFFF' }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }, modalTitle: { fontSize: 22 }, closeButton: { padding: 4 }, closeButtonText: { color: '#4B5563', fontSize: 30 }, inputLabel: { marginBottom: 6, color: '#374151', fontWeight: '700' }, input: { minHeight: 44, marginBottom: 14, paddingHorizontal: 12, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 10, color: '#111827', backgroundColor: '#F9FAFB' }, formError: { marginBottom: 12, color: '#B91C1C' }, saveButton: { minHeight: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFC400' }, saveButtonText: { color: '#111827', fontWeight: '700' },
 });

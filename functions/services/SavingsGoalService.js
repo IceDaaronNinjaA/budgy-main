@@ -8,8 +8,8 @@ const ledgerPromise=import(pathToFileURL(path.join(__dirname,'../shared/LedgerCa
 const calcPromise=import(pathToFileURL(path.join(__dirname,'../shared/SavingsCalculations.js')).href);
 const ID=/^[A-Za-z0-9_-]{1,90}$/;
 const FIELDS={
- create:['requestId','goalId','name','targetCents','startDate','deadlineDate'],
- update:['requestId','goalId','name','targetCents','startDate','deadlineDate'],
+ create:['requestId','goalId','name','description','targetCents','startDate','deadlineDate'],
+ update:['requestId','goalId','name','description','targetCents','startDate','deadlineDate'],
  pause:['requestId','goalId','paused'],
  contribute:['requestId','goalId','amountCents','effectiveDate'],
  withdraw:['requestId','goalId','amountCents','effectiveDate'],
@@ -36,6 +36,11 @@ function parse(request,action,calc){
   try{if(calc.dayNumber(data.deadlineDate)<calc.dayNumber(data.startDate))throw new RangeError('Deadline precedes start date');}
   catch(error){fail(error);}
   command.name=data.name.trim();
+  if(data.description!==undefined){
+   if(typeof data.description!=='string'||data.description.trim().length>240)
+    throw new HttpsError('invalid-argument','description must be at most 240 characters.');
+   command.description=data.description.trim();
+  }
  }
  if(action==='pause'&&typeof data.paused!=='boolean')throw new HttpsError('invalid-argument','paused must be boolean.');
  if(action==='contribute'||action==='withdraw'){
@@ -95,20 +100,20 @@ async function perform(request,action){
    tx.create(eventRef,{...event,goalId:cmd.goalId,schemaVersion:1,createdAt:FieldValue.serverTimestamp()});
    tx.update(summaryRef,{...summary,accounts:updatedAccounts,lastEventId:eventId,updatedAt:FieldValue.serverTimestamp()});
   }
-  if(action==='create')nextGoal={goalId:cmd.goalId,name:cmd.name,targetCents:cmd.targetCents,
+  if(action==='create')nextGoal={goalId:cmd.goalId,name:cmd.name,...(cmd.description!==undefined?{description:cmd.description}:{}),targetCents:cmd.targetCents,
    startDate:cmd.startDate,deadlineDate:cmd.deadlineDate,paused:false,archived:false};
-  else if(action==='update')nextGoal={...previous,name:cmd.name,targetCents:cmd.targetCents,startDate:cmd.startDate,deadlineDate:cmd.deadlineDate};
+  else if(action==='update')nextGoal={...previous,name:cmd.name,...(cmd.description!==undefined?{description:cmd.description}:{}),targetCents:cmd.targetCents,startDate:cmd.startDate,deadlineDate:cmd.deadlineDate};
   else if(action==='pause')nextGoal={...previous,paused:cmd.paused};
   else nextGoal=previous;
   const currentSaved=updatedAccounts[key]??0;
   const asOfDate=funding?cmd.effectiveDate:nextGoal.startDate;
   let progress;try{progress=calc.savingsProgress({targetCents:nextGoal.targetCents,savedCents:currentSaved,
    startDate:nextGoal.startDate,deadlineDate:nextGoal.deadlineDate,asOfDate});}catch(error){fail(error);}
-  const result={goalId:cmd.goalId,name:nextGoal.name,targetCents:nextGoal.targetCents,
+  const result={goalId:cmd.goalId,name:nextGoal.name,...(nextGoal.description!==undefined?{description:nextGoal.description}:{}),targetCents:nextGoal.targetCents,
    startDate:nextGoal.startDate,deadlineDate:nextGoal.deadlineDate,paused:nextGoal.paused,
    ...progress,...(funding?{eventId,...summary}:{})};
   if(action==='create')tx.create(goalRef,{...nextGoal,schemaVersion:1,createdAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()});
-  if(action==='update')tx.update(goalRef,{name:cmd.name,targetCents:cmd.targetCents,startDate:cmd.startDate,deadlineDate:cmd.deadlineDate,updatedAt:FieldValue.serverTimestamp()});
+  if(action==='update')tx.update(goalRef,{name:cmd.name,...(cmd.description!==undefined?{description:cmd.description}:{}),targetCents:cmd.targetCents,startDate:cmd.startDate,deadlineDate:cmd.deadlineDate,updatedAt:FieldValue.serverTimestamp()});
   if(action==='pause')tx.update(goalRef,{paused:cmd.paused,updatedAt:FieldValue.serverTimestamp()});
   tx.create(receiptRef,{requestId:cmd.requestId,fingerprint,kind:`savings_${action}`,
    status:'committed',eventId:funding?eventId:null,result,createdAt:FieldValue.serverTimestamp()});
