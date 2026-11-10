@@ -63,7 +63,7 @@ service cloud.firestore {
         allow update: if isOwner(uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'name', 'description', 'targetCents', 'startDate', 'deadlineDate',
-            'status', 'paused', 'currentReservedCents', 'lastOperationId', 'updatedAt'
+            'status', 'paused', 'archived', 'currentReservedCents', 'lastOperationId', 'updatedAt'
           ])
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
@@ -73,6 +73,10 @@ service cloud.firestore {
           && request.resource.data.currentReservedCents is int
           && request.resource.data.currentReservedCents >= 0
           && request.resource.data.updatedAt == request.time
+          && (request.resource.data.archived == resource.data.archived
+            || (request.resource.data.archived == true
+              && request.resource.data.status == 'archived'
+              && request.resource.data.currentReservedCents == 0))
           && (request.resource.data.currentReservedCents == resource.data.currentReservedCents
             || (request.resource.data.lastOperationId is string
               && request.resource.data.lastOperationId != resource.data.lastOperationId

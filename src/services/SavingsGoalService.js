@@ -3,32 +3,23 @@ import { collection, doc, getDocs, runTransaction, serverTimestamp } from 'fireb
 import { auth, db } from '../../config/firebase';
 
 function requireUser() {
-  const user = auth.currentUser;
-  if (!user) throw new Error('You must be signed in to manage savings goals.');
-  return user;
-}
-
-function goalsCollection(uid) {
-  return collection(db, 'users', uid, 'savingsGoals');
-}
-
-function mapGoal(document) {
-  const goal = document.data();
-  return { id: document.id, ...goal, savedCents: goal.currentReservedCents ?? goal.initialReservedCents ?? 0 };
+  if (!auth.currentUser) throw new Error('You must be signed in to manage savings goals.');
+  return auth.currentUser;
 }
 
 export async function getUserGoals() {
   const user = requireUser();
-  const snapshot = await getDocs(goalsCollection(user.uid));
-  return snapshot.docs
-    .map(mapGoal)
-    .sort((first, second) => first.deadlineDate.localeCompare(second.deadlineDate));
+  const snapshot = await getDocs(collection(db, 'users', user.uid, 'savingsGoals'));
+  return snapshot.docs.filter((item) => item.data().archived !== true).map((item) => {
+    const goal = item.data();
+    return { id: item.id, ...goal, savedCents: goal.currentReservedCents ?? 0 };
+  }).sort((first, second) => first.deadlineDate.localeCompare(second.deadlineDate));
 }
 
 export async function createSavingsGoal(data) {
   const user = requireUser();
   const goalReference = doc(db, 'users', user.uid, 'savingsGoals', data.goalId);
-  const goalDocument = {
+  const goal = {
     goalId: data.goalId,
     name: data.name.trim(),
     ...(data.description?.trim() ? { description: data.description.trim() } : {}),
@@ -45,20 +36,11 @@ export async function createSavingsGoal(data) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
-
   return runTransaction(db, async (transaction) => {
     const existing = await transaction.get(goalReference);
-    if (existing.exists()) {
-      const current = existing.data();
-      const sameGoal = current.name === goalDocument.name
-        && current.targetCents === goalDocument.targetCents
-        && current.startDate === goalDocument.startDate
-        && current.deadlineDate === goalDocument.deadlineDate;
-      if (!sameGoal) throw new Error('A goal with this ID already exists.');
-      return { id: existing.id, ...current, duplicate: true };
-    }
-    transaction.set(goalReference, goalDocument);
-    return { id: data.goalId, ...goalDocument, savedCents: 0, duplicate: false };
+    if (existing.exists()) return { id: existing.id, ...existing.data(), duplicate: true };
+    transaction.set(goalReference, goal);
+    return { id: data.goalId, ...goal, savedCents: 0, duplicate: false };
   });
 }
 
@@ -72,7 +54,7 @@ export async function updateSavingsGoal(data) {
     const updated = {
       ...current,
       name: data.name.trim(),
-      ...(data.description !== undefined ? { description: data.description.trim() } : {}),
+      ...(data.description?.trim() ? { description: data.description.trim() } : {}),
       targetCents: data.targetCents,
       startDate: data.startDate,
       deadlineDate: data.deadlineDate,
@@ -84,63 +66,21 @@ export async function updateSavingsGoal(data) {
   });
 }
 
-export async function setSavingsGoalPaused(data) {
+export async function archiveSavingsGoal(goalId) {
   const user = requireUser();
-  const goalReference = doc(db, 'users', user.uid, 'savingsGoals', data.goalId);
+  const goalReference = doc(db, 'users', user.uid, 'savingsGoals', goalId);
   return runTransaction(db, async (transaction) => {
     const existing = await transaction.get(goalReference);
     if (!existing.exists()) throw new Error('Savings goal not found.');
-    transaction.update(goalReference, { paused: data.paused, updatedAt: serverTimestamp() });
-    return { id: existing.id, ...existing.data(), paused: data.paused };
-  });
-}
-
-async function applyGoalOperation({ goalId, requestId, amountCents, kind }) {
-  const user = requireUser();
-  const goalReference = doc(db, 'users', user.uid, 'savingsGoals', goalId);
-  const operationReference = doc(db, 'users', user.uid, 'goalOperations', requestId);
-
-  return runTransaction(db, async (transaction) => {
-    const [goalSnapshot, operationSnapshot] = await Promise.all([
-      transaction.get(goalReference),
-      transaction.get(operationReference),
-    ]);
-    if (operationSnapshot.exists()) return { ...operationSnapshot.data(), duplicate: true };
-    if (!goalSnapshot.exists()) throw new Error('Savings goal not found.');
-    const goal = goalSnapshot.data();
-    if (goal.paused || goal.archived) throw new Error('Savings goal is not available.');
-    const currentReservedCents = goal.currentReservedCents ?? 0;
-    const resultingReservedCents = kind === 'contribute'
-      ? currentReservedCents + amountCents
-      : currentReservedCents - amountCents;
-    if (resultingReservedCents < 0) throw new Error('Cannot withdraw more than the goal reserve.');
-    const status = resultingReservedCents >= goal.targetCents
-      ? 'achieved'
-      : goal.status === 'overdue' ? 'overdue' : 'active';
-    const operation = {
-      operationId: requestId,
-      goalId,
-      kind,
-      amountCents,
-      resultingReservedCents,
-      schemaVersion: 1,
-      createdAt: serverTimestamp(),
-    };
+    const current = existing.data();
+    if ((current.currentReservedCents ?? 0) > 0) {
+      throw new Error('Move all reserved funds before archiving this goal.');
+    }
     transaction.update(goalReference, {
-      currentReservedCents: resultingReservedCents,
-      lastOperationId: requestId,
-      status,
+      archived: true,
+      status: 'archived',
       updatedAt: serverTimestamp(),
     });
-    transaction.create(operationReference, operation);
-    return { ...operation, savedCents: resultingReservedCents, duplicate: false };
+    return { id: existing.id, ...current, archived: true, status: 'archived' };
   });
-}
-
-export function contributeToSavingsGoal(data) {
-  return applyGoalOperation({ ...data, kind: 'contribute' });
-}
-
-export function withdrawFromSavingsGoal(data) {
-  return applyGoalOperation({ ...data, kind: 'withdraw' });
 }
