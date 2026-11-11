@@ -9,6 +9,7 @@ export default function AppTabs() {
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="transactions" options={{ title: 'Transactions' }} />
+      <Tabs.Screen name="add-transaction" options={{ href: null }} />
       <Tabs.Screen name="goals" options={{ title: 'Goals' }} />
       <Tabs.Screen name="settings" options={{ title: 'Profile' }} />
       <Tabs.Screen name="budgets" options={{ href: null }} />

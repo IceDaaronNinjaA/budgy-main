@@ -10,10 +10,11 @@ const navItems = [
   { path: '/settings', label: 'Profile', icon: require('@/assets/icons/navMenu/profile.svg') },
 ];
 
-export default function NavBar({ onAddPress = () => {} }) {
+export default function NavBar({ onAddPress }) {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const router = useRouter();
+  const handleAddPress = onAddPress ?? (() => router.push('/add-transaction'));
 
   const navigateTo = (path) => {
     if (pathname !== path) {
@@ -56,7 +57,7 @@ export default function NavBar({ onAddPress = () => {} }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Add"
-          onPress={onAddPress}
+          onPress={handleAddPress}
           style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
         >
           <Image
