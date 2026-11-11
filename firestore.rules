@@ -24,6 +24,95 @@ service cloud.firestore {
         // Client applications cannot directly modify financial data.
         allow write: if false;
       }
+
+      // Spark-compatible goal metadata path. Goal creation does not move
+      // money; reserve transfers and journal mutations remain backend-only.
+      match /savingsGoals/{goalId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly([
+            'goalId', 'name', 'description', 'targetCents', 'startDate',
+            'deadlineDate', 'initialReservedCents', 'status', 'paused',
+            'archived', 'currentReservedCents', 'lastOperationId',
+            'schemaVersion', 'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.goalId == goalId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 80
+          && (!request.resource.data.keys().hasAny(['description'])
+            || (request.resource.data.description is string
+              && request.resource.data.description.size() <= 240))
+          && request.resource.data.targetCents is int
+          && request.resource.data.targetCents > 0
+          && request.resource.data.startDate is string
+          && request.resource.data.startDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && request.resource.data.deadlineDate is string
+          && request.resource.data.deadlineDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && request.resource.data.initialReservedCents is int
+          && request.resource.data.initialReservedCents == 0
+          && request.resource.data.currentReservedCents is int
+          && request.resource.data.currentReservedCents == 0
+          && request.resource.data.lastOperationId == ''
+          && request.resource.data.status == 'active'
+          && request.resource.data.paused == false
+          && request.resource.data.archived == false
+          && request.resource.data.schemaVersion == 1
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if isOwner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'description', 'targetCents', 'startDate', 'deadlineDate',
+            'status', 'paused', 'archived', 'currentReservedCents', 'lastOperationId', 'updatedAt'
+          ])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 80
+          && request.resource.data.targetCents is int
+          && request.resource.data.targetCents > 0
+          && request.resource.data.currentReservedCents is int
+          && request.resource.data.currentReservedCents >= 0
+          && request.resource.data.updatedAt == request.time
+          && (request.resource.data.archived == resource.data.archived
+            || (request.resource.data.archived == true
+              && request.resource.data.status == 'archived'
+              && request.resource.data.currentReservedCents == 0))
+          && (request.resource.data.currentReservedCents == resource.data.currentReservedCents
+            || (request.resource.data.lastOperationId is string
+              && request.resource.data.lastOperationId != resource.data.lastOperationId
+              && getAfter(
+                /databases/$(database)/documents/users/$(uid)/goalOperations/$(request.resource.data.lastOperationId)
+              ).data.goalId == goalId
+              && getAfter(
+                /databases/$(database)/documents/users/$(uid)/goalOperations/$(request.resource.data.lastOperationId)
+              ).data.resultingReservedCents == request.resource.data.currentReservedCents));
+        allow delete: if false;
+      }
+
+      match /goalOperations/{operationId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly([
+            'operationId', 'goalId', 'kind', 'amountCents',
+            'resultingReservedCents', 'schemaVersion', 'createdAt'
+          ])
+          && request.resource.data.operationId == operationId
+          && request.resource.data.goalId is string
+          && request.resource.data.kind in ['contribute', 'withdraw']
+          && request.resource.data.amountCents is int
+          && request.resource.data.amountCents > 0
+          && request.resource.data.resultingReservedCents is int
+          && request.resource.data.resultingReservedCents >= 0
+          && request.resource.data.schemaVersion == 1
+          && request.resource.data.createdAt == request.time
+          && getAfter(
+            /databases/$(database)/documents/users/$(uid)/savingsGoals/$(request.resource.data.goalId)
+          ).data.lastOperationId == operationId
+          && getAfter(
+            /databases/$(database)/documents/users/$(uid)/savingsGoals/$(request.resource.data.goalId)
+          ).data.currentReservedCents == request.resource.data.resultingReservedCents;
+        allow update, delete: if false;
+      }
     }
 
     // Everything else, including legacy top-level collections,
