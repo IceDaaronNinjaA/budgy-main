@@ -54,3 +54,7 @@ database-debug.log
 *-debug.log
 .firebase/
 firebase-export/
+
+# Firebase Admin service account keys (never commit)
+serviceAccount*.json
+*-firebase-adminsdk-*.json

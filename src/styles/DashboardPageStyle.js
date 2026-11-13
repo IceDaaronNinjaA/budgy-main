@@ -49,6 +49,7 @@ const styles = StyleSheet.create({
   expense: { color: '#6B7280' },
   incomeTextCard: { color: '#2F6E5A' },
   expenseTextCard: { color: '#7A5A73' },
+  errorText: { color: '#B91C1C', marginTop: 12 },
   statCardIcon: { width: 45, height: 45, marginBottom: 10 },
 
   // Section headers and transaction history.

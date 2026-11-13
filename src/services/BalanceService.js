@@ -1,16 +1,17 @@
-import { getTransactions } from './TransactionService';
+import { doc, getDoc } from 'firebase/firestore';
 
-export async function getUserBalance(userId) {
-  const transactions = await getTransactions(userId);
+import { db } from '../../config/firebase';
+import { calculateBalanceSummary } from '@/domain/DashboardCalculations';
+import { getAuthenticatedUser } from './UserService';
 
-  return transactions.reduce(
-    (balance, transaction) => {
-      const amount = Number(transaction.amount) || 0;
+// Reads the signed-in user's ledger summary; an account with no financial
+// history yet resolves to all-zero balances (FR-DASH-006).
+export async function getUserBalance() {
+  const user = await getAuthenticatedUser();
+  if (!user?.uid) {
+    throw new Error('You must be signed in to load your balance.');
+  }
 
-      return transaction.type === 'income'
-        ? balance + amount
-        : balance - amount;
-    },
-    0
-  );
+  const snapshot = await getDoc(doc(db, 'users', user.uid, 'summaries', 'current'));
+  return calculateBalanceSummary(snapshot.exists() ? snapshot.data() : {});
 }
