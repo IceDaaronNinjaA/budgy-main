@@ -15,6 +15,10 @@ export default function NavBar({ onAddPress = () => {} }) {
   const pathname = usePathname();
   const router = useRouter();
 
+  if (pathname === '/add-transaction') {
+    return null;
+  }
+
   const navigateTo = (path) => {
     if (pathname !== path) {
       router.replace(path);

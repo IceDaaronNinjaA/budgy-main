@@ -25,6 +25,61 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Categories are labels, not financial postings. Allow an owner to
+      // create one directly from the app with a constrained, safe shape.
+      match /categories/{categoryId} {
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly([
+            'categoryId', 'name', 'type', 'archived', 'schemaVersion',
+            'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.categoryId == categoryId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 80
+          && request.resource.data.type in ['income', 'expense']
+          && request.resource.data.archived == false
+          && request.resource.data.schemaVersion == 1
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update, delete: if false;
+      }
+
+      // Spark-plan client transaction path. These records are owner-scoped;
+      // balances are derived client-side from active transaction records.
+      match /transactions/{transactionId} {
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly([
+            'requestId', 'eventType', 'amountCents', 'effectiveDate',
+            'sourceKey', 'categoryId', 'description', 'schemaVersion',
+            'status', 'createdAt'
+          ])
+          && request.resource.data.requestId is string
+          && request.resource.data.requestId.size() > 0
+          && request.resource.data.requestId.size() <= 110
+          && request.resource.data.eventType in ['income', 'expense']
+          && request.resource.data.amountCents is int
+          && request.resource.data.amountCents > 0
+          && request.resource.data.effectiveDate is string
+          && request.resource.data.effectiveDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && ((request.resource.data.eventType == 'expense'
+            && request.resource.data.sourceKey == 'unallocated')
+            || (request.resource.data.eventType == 'income'
+            && request.resource.data.sourceKey == null))
+          && (request.resource.data.categoryId == null
+            || (request.resource.data.categoryId is string
+              && request.resource.data.categoryId.size() > 0
+              && request.resource.data.categoryId.size() <= 128))
+          && request.resource.data.description is string
+          && request.resource.data.description.size() > 0
+          && request.resource.data.description.size() <= 200
+          && request.resource.data.schemaVersion == 1
+          && request.resource.data.status == 'active'
+          && request.resource.data.createdAt == request.time;
+        allow read: if isOwner(uid);
+        allow update, delete: if false;
+      }
+
       // Spark-compatible goal metadata path. Goal creation does not move
       // money; reserve transfers and journal mutations remain backend-only.
       match /savingsGoals/{goalId} {
@@ -113,6 +168,59 @@ service cloud.firestore {
           ).data.currentReservedCents == request.resource.data.resultingReservedCents;
         allow update, delete: if false;
       }
+    }
+
+    // Spark-plan root collections. Each document carries its owner UID.
+    match /categories/{categoryId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId)
+        && request.resource.data.keys().hasOnly([
+          'userId', 'categoryId', 'name', 'type', 'archived', 'schemaVersion',
+          'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.categoryId == categoryId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.type in ['income', 'expense']
+        && request.resource.data.archived == false
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId)
+        && request.resource.data.keys().hasOnly([
+          'userId', 'requestId', 'eventType', 'amountCents', 'effectiveDate',
+          'sourceKey', 'categoryId', 'description', 'schemaVersion',
+          'status', 'createdAt'
+        ])
+        && request.resource.data.requestId is string
+        && request.resource.data.requestId.size() > 0
+        && request.resource.data.requestId.size() <= 110
+        && request.resource.data.eventType in ['income', 'expense']
+        && request.resource.data.amountCents is int
+        && request.resource.data.amountCents > 0
+        && request.resource.data.effectiveDate is string
+        && request.resource.data.effectiveDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && ((request.resource.data.eventType == 'expense'
+          && request.resource.data.sourceKey == 'unallocated')
+          || (request.resource.data.eventType == 'income'
+          && request.resource.data.sourceKey == null))
+        && (request.resource.data.categoryId == null
+          || (request.resource.data.categoryId is string
+            && request.resource.data.categoryId.size() > 0
+            && request.resource.data.categoryId.size() <= 128))
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 200
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.status == 'active'
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
     }
 
     // Everything else, including legacy top-level collections,
