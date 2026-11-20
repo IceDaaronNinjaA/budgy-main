@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const navItems = [
   { path: '/', label: 'Home', icon: require('@/assets/icons/navMenu/home.svg') },
-  { path: '/transactions', label: 'Transactions', icon: require('@/assets/icons/navMenu/transaction.svg') },
+  { path: '/transactions', label: 'Summary', icon: require('@/assets/icons/navMenu/transaction.svg') },
   { path: '/goals', label: 'Goals', icon: require('@/assets/icons/navMenu/goals.svg') },
   { path: '/settings', label: 'Profile', icon: require('@/assets/icons/navMenu/profile.svg') },
 ];
