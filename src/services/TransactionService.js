@@ -1,6 +1,8 @@
 import {
   addDoc,
   collection,
+  doc,
+  getDoc,
   getDocs,
   query,
   serverTimestamp,
@@ -69,5 +71,12 @@ export async function getTransactions(userId) {
         type: data.eventType ?? data.type,
       };
     })
-    .sort((first, second) => second.date.localeCompare(first.date));
+    .sort((first, second) => (second.date ?? '').localeCompare(first.date ?? ''));
+}
+
+export async function getAccountSummary() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('You must be signed in to read spending data.');
+  const snapshot = await getDoc(doc(db, 'users', uid, 'summaries', 'current'));
+  return snapshot.exists() ? snapshot.data() : null;
 }

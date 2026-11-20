@@ -8,7 +8,7 @@ export default function AppTabs() {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="transactions" options={{ title: 'Transactions' }} />
+      <Tabs.Screen name="transactions" options={{ title: 'Summary', tabBarAccessibilityLabel: 'Summary' }} />
       <Tabs.Screen name="goals" options={{ title: 'Goals' }} />
       <Tabs.Screen name="settings" options={{ title: 'Profile' }} />
       <Tabs.Screen name="budgets" options={{ href: null }} />
